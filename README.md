@@ -49,3 +49,4 @@ OpenAI
 3. After your account has been created, click on your account profile at the top-right corner of the page and select "API Keys".
 4. Click on "+ Create new secret key" to create a new API key.
 5. Copy the API key that appears on the screen and save it in a safe place. This API key is required to authenticate your Python script when making requests to OpenAI's API.
+6. Edit the gmailsummary.py file in a text editor, and place your API Key inside the ```"empty quotation marks"``` next to ```OPENAI_API_KEY``` in the ```OpenAI API parameters``` section near the top of the document.
