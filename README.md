@@ -5,9 +5,28 @@ This code uses the Gmail API to call for the latest unread emails from the perso
 
 This process requires the python script to be running constantly on a home computer or Raspberry Pi. Once I figure out how to do that automatically I will update these instructions. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
 
+Installation:
+
+Python Script
+1. Download the python script from this repository
+2. Run this command to download the required components to run the script:
+
+```sudo pip3 install flask google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client openai requests```
+
+3. Choose a folder to run this script in so you can point your terminal to it (e.g. ```Documents/ChatGPT/GmailSummary```)
+4. Set your terminal to that folder: ```cd Documents/ChatGPT/GmailSummary```
+5. To start the python server: ```python3 gmailsummary.py```
+6. Start it later. You don't have everything you need yet.
+
 iOS Shortcut
 1. The iOS Shortcut is the method used to trigger the email summary from your iPhone or Mac. Frankly I have no clue how to control this from Android or Windows, as my knowledge of Python is non-existant and I used ChatGPT to code this.
 2. https://www.icloud.com/shortcuts/61857d5f16b44c81819af2450b3ca0fc
+3. The Shortcut includes setup instructions. Enter the port of the computer running this script, or the Cloudflare Tunnel URL. This app uses ```port:1337```
+4. If this port conflicts with something you are using already, modify the port number with a text editor and save the gmailsummary.py file.
+
+Cloudflare Tunnel
+1. To access your Python Server outside of your home (or any other self-hosted applications you may have running) I recommend using a Cloudflare tunnel as described by Crosstalk Solutions
+2. https://www.youtube.com/watch?v=ZvIdFs3M5ic
 
 Google Cloud Console
 1. Go to console.cloud.google.com on your web browser.
@@ -30,7 +49,3 @@ OpenAI
 3. After your account has been created, click on your account profile at the top-right corner of the page and select "API Keys".
 4. Click on "+ Create new secret key" to create a new API key.
 5. Copy the API key that appears on the screen and save it in a safe place. This API key is required to authenticate your Python script when making requests to OpenAI's API.
-
-Cloudflare Tunnel
-1. To access your Python Server outside of your home (or any other self-hosted applications you may have running) I recommend using a Cloudflare tunnel as described by Crosstalk Solutions
-2. https://www.youtube.com/watch?v=ZvIdFs3M5ic
