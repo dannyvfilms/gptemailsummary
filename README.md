@@ -20,7 +20,7 @@ Python Script
 
 iOS Shortcut
 1. The iOS Shortcut is the method used to trigger the email summary from your iPhone or Mac. Frankly I have no clue how to control this from Android or Windows, as my knowledge of Python is non-existant and I used ChatGPT to code this.
-2. [https://www.icloud.com/shortcuts/61857d5f16b44c81819af2450b3ca0fc](https://www.icloud.com/shortcuts/3be5ae7afee34aeb9afe0955c82de438)
+2. https://www.icloud.com/shortcuts/3be5ae7afee34aeb9afe0955c82de438
 3. The Shortcut includes setup instructions. Enter the port of the computer running this script, or the Cloudflare Tunnel URL. This app uses ```port:1337```
 4. If this port conflicts with something you are using already, modify the port number with a text editor and save the gmailsummary.py file.
 
