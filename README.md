@@ -1,7 +1,7 @@
 # GPT Email Summary
 Uses Gmail and OpenAI's APIs to summarize emails through a python server and iOS Shortcut. This usecase was inspired by Justin Alvey's post on Twitter, which I was unable to find the source code for. https://t.co/TLIoW48rLg
 
-This code uses the Gmail API to call for the latest unread emails from the personal section of your inbox. It avoids reading your entire inbox as marketing emails contain HTML code that will likely hit the token limit for OpenAI. The contents of those emails are then given to OpenAI with pre-written instructions (By Justin Alvey with minor additions) to summarize the emails. That output is given to the Shortcut you triggered the process with, and Siri will read out the summary. iOS Shortcuts exist that can use more advanced voices like those from Elevenlabs.
+This code uses the Gmail API to call for the latest unread emails from the personal section of your inbox. It avoids reading your entire inbox as marketing emails contain HTML code that will likely hit the token limit for OpenAI. The contents of those emails are then given to OpenAI with pre-written instructions (By Justin Alvey with minor additions) to summarize the emails. That output is given to the Shortcut you triggered the process with, and Siri will read out the summary. These emails will also be marked as unread during the process. iOS Shortcuts exist that can use more advanced voices like those from Elevenlabs.
 
 This process requires the python script to be running constantly on a home computer or Raspberry Pi. Once I figure out how to do that automatically I will update these instructions. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
 
