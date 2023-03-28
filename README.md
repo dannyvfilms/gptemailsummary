@@ -5,6 +5,8 @@ This code uses the Gmail API to call for the latest unread emails from the perso
 
 This process requires the python script to be running constantly on a home computer or Raspberry Pi. Once I figure out how to do that automatically I will update these instructions. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
 
+NOTE: This project is being converted to run in a Docker container. I'm not done yet, so old instructions are below. The OPENAI Parameters will need to be swapped out since they point to Docker environment variables right now.
+
 Installation:
 
 Python Script
