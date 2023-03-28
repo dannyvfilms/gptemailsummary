@@ -9,6 +9,18 @@ NOTE: This project is being converted to run in a Docker container. I'm not done
 
 Installation:
 
+New Instructions:
+1. Download the whole git repository
+2. Set your terminal to that folder: ```cd Documents/ChatGPT/GmailSummary```
+3. Run this command to compile the docker container:
+
+```sudo docker build -t gmailsummary .```
+
+4. Run the docker container:
+
+```docker run -p 1337:1337 gmailsummary```
+
+Old Instructions:
 Python Script
 1. Download the python script from this repository
 2. Run this command to download the required components to run the script:
