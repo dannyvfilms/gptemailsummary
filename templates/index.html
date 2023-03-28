@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Page</title>
+    <style>
+  body {
+    font-family: Uni Sans, sans-serif;
+    background-color: #2E3035;
+    color: #eee;
+  }
+
+  header {
+    background-color: #111;
+    color: #eee;
+    text-align: center;
+    padding: 1rem;
+    width: calc(100% - 33%);
+  }
+
+  main {
+    display: flex;
+    flex-direction: column; /* change the direction to column */
+    padding: 1rem;
+    padding-top: 0rem;
+    margin-right: 33%;
+  }
+
+  .card {
+    width: 30%;
+    background-color: #444;
+    border: 1px solid #666;
+    border-radius: 5px;
+    padding: 2rem;
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.3);
+  }
+
+  h3 {
+    font-size: 16px;
+    margin-top: 0rem;
+    color: #eee;
+    font-weight: normal;
+  }
+
+  .card p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #eee;
+  }
+
+  .card button {
+    display: none; /* hide the button */
+  }
+
+/* Email buttons */
+.email-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 0rem 0;
+  justify-content: center;
+}
+
+.email-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #4E5058;
+  color: #FEFEFE;
+  border: none;
+  padding: .75rem 2rem;
+  font-size: .8rem;
+  font-weight: bold;
+  cursor: pointer;
+  position: relative;
+}
+
+.email-button:not(:last-child) {
+  border-right: 1px solid #1E1F22;
+}
+
+.email-button:active {
+  background-color: #666;
+}
+
+.email-button:first-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.email-button:last-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 5px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top: 1px solid #1E1F22;
+}
+
+.email-button:nth-child(n+6):not(:last-child) {
+  border-right: 1px solid #1E1F22;
+  border-top: 1px solid #1E1F22;
+}
+
+.email-button:nth-child(5):not(:last-child),
+.email-button:nth-child(10):not(:last-child) {
+  border-right: 0 solid #666;
+}
+
+.email-button:nth-child(5):first-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+.email-button:nth-child(6):first-child {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.email-button:nth-child(1),
+.email-button:nth-child(2),
+.email-button:nth-child(3),
+.email-button:nth-child(4) {
+  border-bottom-right-radius: 0;
+}
+
+.email-button:nth-child(5):not(:first-child),
+.email-button:nth-child(6):not(:first-child),
+.email-button:nth-child(7),
+.email-button:nth-child(8),
+.email-button:nth-child(9),
+.email-button:nth-child(10):not(:first-child) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.email-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: #444;
+  color: #eee;
+  border: none;
+  border-radius: 0 0 5px 5px;
+  padding: 1.5rem 2rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: none;
+}
+
+.email-button:active .email-dropdown {
+  display: block;
+}
+      
+  /* Terminal-like panel */
+  .terminal-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 33%;
+    height: 100%;
+    background-color: black;
+    color: white;
+    z-index: 998;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-y: scroll;
+    border-left: 1px solid #1E1F22;
+  }
+
+  .terminal-panel p {
+    margin: 0;
+    padding: 0 .75rem;
+  }
+
+  .terminal-panel input[type="text"] {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    background-color: #333;
+    color: white;
+    border: none;
+    outline: none;
+  }
+
+  .terminal-panel input[type="submit"] {
+    display: none;
+  }
+      .code-block {
+  background-color: #2B2D31;
+  border: 1px solid #1E1F22;
+  font-family: Uni Sans, monospace;
+  font-size: 14px;
+  padding: 10px;
+  border-radius: 10px 10px 10px 10px;
+}
+</style>
+
+
+</head>
+<body>
+    <main>
+  <h2>Gmail Summary</h2>
+  <h3>Preview latest emails:</h3>
+  <div class="email-list">
+    <button class="email-button" id="email1">Acme Corporation</button>
+    <button class="email-button" id="email2">John Doe</button>
+    <button class="email-button" id="email3">Jane Smith</button>
+    <button class="email-button" id="email4">XYZ Company</button>
+    <button class="email-button" id="email5">Mary Johnson</button>
+    <button class="email-button" id="email6">ABC Inc.</button>
+    <button class="email-button" id="email7">Sarah Williams</button>
+    <button class="email-button" id="email8">David Lee</button>
+    <button class="email-button" id="email9">New Horizons LLC</button>
+    <button class="email-button" id="email10">Samantha Brown</button>
+  </div>
+  <div class="summary">
+    <p class="code-block">
+      Fetching latest emails...<br><br>Email IDs: 1811bc9bc6aab2b0, 1811ffd85e3e8023, 18120e5ac28a0061, 18124ccce16ef3be, 1812598efb438247, 181267afffcae575, 1812a0f48b8acbe5, 1812b2e77f0ab5c3, 1812e4c04312b58d, 18136ebf67d52c9b.</p>
+    <p class="code-block">
+      Marking emails as read...<br><br>Email IDs: 1811bc9bc6aab2b0, 1811ffd85e3e8023, 18120e5ac28a0061, 18124ccce16ef3be, 1812598efb438247, 181267afffcae575, 1812a0f48b8acbe5, 1812b2e77f0ab5c3, 1812e4c04312b58d, 18136ebf67d52c9b.</p>
+    <p class="code-block">
+      Generated prompt for OpenAI....</p>
+    <p class="code-block">
+      Generated summary from OpenAI...<br><br>Hey Daniel, I've got a summary of your new emails for you. First, Zoom sent an email about enhancements to the Admin Portal, and the migration to the New Admin Experience will start on June 1. Once it's enabled, you won't be able to switch back. They also sent an email targeted at Zoom Developers, mentioning that the JWT app type will be deprecated by June 2023, and you should migrate to the server-to-server OAuth app type.
+
+StreamYard announced the release of their Greenroom feature on the Business Plan, which lets hosts prepare with guests before going live. You can book a demo if you're interested.
+
+You received four Adobe verification codes, but I'm not sure if you requested them: 832911, 304120, 296077, and 876965. If you didn't request them, you might want to check your account security.
+
+Lastly, you've successfully paid for a subscription to Film Impact's Essentials Collection for $15, and it will renew every month, with the next charge on 7/4/22.
+
+That's all for now, and remember, what do you call an alligator in a vest? An investigator! Have a great day, Daniel!</p>
+  <p class="code-block">
+      Sending summary to Elevenlabs...</p>
+  </div>
+</main>
+
+    <!-- Terminal-like panel -->
+    <div class="terminal-panel">
+        <br>
+        <p>Logs of gmailsummary.py will appear here...</p>
+    </div>
+</body>
+
+</html>
