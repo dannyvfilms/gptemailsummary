@@ -1,7 +1,5 @@
 # Install required components
-# sudo pip3 install flask google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client openai requests
-
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 import google.auth
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -18,12 +16,22 @@ import re
 
 app = Flask(__name__)
 
+## Commenting out for now. Possible port conflict stops core functionality.
+## Route to serve the index.html file at the root URL
+#@app.route('/')
+#def index():
+#    return render_template('index.html')
+#
+## Start the Flask app on host 0.0.0.0 and port 1337
+#if __name__ == '__main__':
+#    app.run(host='0.0.0.0', port=1337)
+
 # OpenAI API parameters
-OPENAI_API_KEY = ""
-CUSTOM_PROMPT = "Pretend to be a friendly assistant to someone that you know really well. Their name is Daniel, and they have just asked if there are any noteworthy new emails. Respond providing relevant summaries and if there are any important details or followups needed for each of the emails without just reading them out. Maybe slip in a joke if possible. Try to be observant of all the details in the data to come across as observant and emotionally intelligent as you can. Don't ask for a followup or if they need anything else. The emails are numbered below. Do not include the email numbers in your response. Don't include emojis in your response. Don't write fictional emails. If this is the last sentence of the prompt, simply tell the user that there were no emails to summarize right now."
-OPENAI_ENGINE = "gpt-4"
-OPENAI_MAX_TOKENS = 1000
-OPENAI_TEMPERATURE = 0.7
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+CUSTOM_PROMPT = os.environ.get('CUSTOM_PROMPT')
+OPENAI_ENGINE = os.environ.get('OPENAI_ENGINE')
+OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS'))
+OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE'))
 
 # Set up OpenAI API credentials
 openai.api_key = OPENAI_API_KEY
@@ -83,16 +91,26 @@ def fetch_latest_emails():
                 if isinstance(decoded_data, bytes):   
                     decoded_data = decoded_data.decode("utf-8")   
            
-            # If the message body is empty, set a default value
+            # If the message body is empty or contains no content, set a default value
+            if not decoded_data:
+                decoded_data = "No content"
+  
+
+            # Check if the message is a calendar event
+            content_type = next((header['value'] for header in headers if header['name'] == 'Content-Type'), '')
+            if 'text/calendar' in content_type:
+                sender = 'Calendar'
+                event_details = decoded_data
             else:
-                decoded_data = "No content"   
+                sender = next((header['value'] for header in headers if header['name'] == 'From'), 'Unknown Sender')
+                event_details = decoded_data
 
             # Create a dictionary with email details
             mail_data = {   
                 'id': msg['id'],
                 'subject': next((header['value'] for header in headers if header['name'] == 'subject'), 'No Subject'),
-                'from': next((header['value'] for header in headers if header['name'] == 'From'), 'Unknown Sender'),
-                'body': decoded_data,
+                'from': sender,
+                'body': event_details,
                 'internalDate': int(msg['internalDate'])
             }
             
@@ -111,13 +129,14 @@ def fetch_latest_emails():
     print("\n" + "#" * 45 + "\n    Latest Emails Fetched:   \n" + "#" * 45 + "\n")
     print(f"{latest_emails}")
 
+
 @app.route('/fetch_emails', methods=['GET'])
 def fetch_emails():
     fetch_latest_emails()
     return jsonify(latest_emails)
 
-def mark_emails_unread(email_ids):
-    # Marks a list of email IDs as unread using the Gmail API.
+def mark_emails_read(email_ids):
+    # Marks a list of email IDs as read using the Gmail API.
     service = googleapiclient.discovery.build('gmail', 'v1', credentials=creds)
 
     for email_id in email_ids:
@@ -127,9 +146,9 @@ def mark_emails_unread(email_ids):
                 id=email_id,
                 body={"removeLabelIds": ["UNREAD"]}
             ).execute()
-            print(f"Marked email {email_id} as unread.")
+            print(f"Marked email {email_id} as read.")
         except Exception as e:
-            print(f"An error occurred while marking email {email_id} as unread: {e}")
+            print(f"An error occurred while marking email {email_id} as read: {e}")
 
 def remove_html_and_links(text):
     # Remove unwanted HTML code
@@ -217,30 +236,51 @@ def get_emails_summary():
         "temperature": OPENAI_TEMPERATURE,
     }
 
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers=headers,
-        json=data,
-    )
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+        )
+        response.raise_for_status()
+        response_json = response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error connecting to OpenAI API: {e}")
+        return jsonify({"error": "Failed to connect to OpenAI API."})
+    except ValueError as e:
+        print(f"Error parsing OpenAI API response: {e}")
+        return jsonify({"error": "Failed to parse OpenAI API response."})
 
-    response_json = response.json()
+    try:
+        response_json = response.json()
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)})
+
     print("\n" + "#" * 45 + "\n    OpenAI Response Payload:   \n" + "#" * 45 + "\n")
     print(response_json)
 
     if 'error' in response_json:
-        print(f"Error: {response_json['error']['message']}")
+        print(f"OpenAI API error: {response_json['error']['message']}")
         return jsonify({"error": response_json["error"]["message"]})
 
-    summary = response_json["choices"][0]["message"]["content"].strip()
+    try:
+        summary = response_json["choices"][0]["message"]["content"].strip()
+    except KeyError:
+        print("Error extracting summary from OpenAI API response.")
+        return jsonify({"error": "Failed to extract summary from OpenAI API response."})
     
-    # Mark the emails as unread
-    print("\n" + "#" * 45 + "\n    Marking emails as unread.   \n" + "#" * 45 + "\n")
-    mark_emails_unread(email_ids)
+    # Mark the emails as read
+    print("\n" + "#" * 45 + "\n    Marking emails as read.   \n" + "#" * 45 + "\n")
+    try:
+        mark_emails_read(email_ids)
+    except Exception as e:
+        print(f"Error marking emails as read: {e}")
 
     # Return the summary as plain text instead of JSON
     print("\n" + "#" * 45 + "\n    OpenAI Response:   \n" + "#" * 45 + "\n")
     print(summary)
-    return summary
+    return jsonify({"summary": summary})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=1337)
