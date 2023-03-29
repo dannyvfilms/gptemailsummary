@@ -1,7 +1,7 @@
 # GPT Email Summary
-Uses Gmail and OpenAI's APIs to summarize emails through a python server and iOS Shortcut. This usecase was inspired by Justin Alvey's post on Twitter, which I was unable to find the source code for. https://t.co/TLIoW48rLg
+Uses Gmail and OpenAI's APIs to summarize emails through a python server and iOS Shortcut. This usecase was inspired by Justin Alvey's post on Twitter, which I was unable to find the source code for, and decided to code manually through ChatGPT. https://t.co/TLIoW48rLg
 
-This code uses the Gmail API to call for the latest unread emails from your inbox. It uses HTML and code filtering to avoid hitting OpenAI's token limit for marketing based emails. The contents of those emails are given to OpenAI with pre-written instructions (By Justin Alvey with minor additions) to summarize the emails. That output is given to an iOS Shortcut, which is used on MacOS or iOS to start the process. Siri will read out the summary, or code has been provided in the Shortcut to integrate with ElevenLabs. All emails will also be marked as read during the process.
+This code uses the Gmail API to call for the latest unread emails from your inbox. It uses HTML and code filtering to avoid hitting OpenAI's token limit for marketing based emails. The contents of those emails are given to OpenAI with pre-written instructions (By Justin Alvey with minor additions) to summarize the emails. That output is given to an iOS Shortcut, which is used on MacOS or iOS to start the process and return the result. Siri will read out the summary, or code has been provided in the Shortcut to integrate with ElevenLabs. All emails will also be marked as read during the process.
 
 This process requires the python script to be running constantly on a home computer or Raspberry Pi. It has been packaged as a Docker container to be able to run automatically on startup. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
 
@@ -29,7 +29,6 @@ This process requires the python script to be running constantly on a home compu
 3. After your account has been created, click on your account profile at the top-right corner of the page and select "API Keys".
 4. Click on "+ Create new secret key" to create a new API key.
 5. Copy the API key that appears on the screen and save it in a safe place. This API key is required to authenticate your Python script when making requests to OpenAI's API.
-6. Edit the gmailsummary.py file in a text editor, and place your API Key inside the ```"empty quotation marks"``` next to ```OPENAI_API_KEY``` in the ```OpenAI API parameters``` section near the top of the document.
 
 ## ElevenLabs
 1. Go to https://beta.elevenlabs.io and click your Profile
@@ -50,20 +49,13 @@ This process requires the python script to be running constantly on a home compu
 
 # Script Installation
 1. Download GmailSummary and put it in a folder of your choice
-2. Create Google Authentication pickle
-```cd /home/pi/Documents/GmailSummary```
-```python3 generatepickle.py```
-Log in, Allow. Note the addition of token.pickle to your directory.
-
+2. Create Google Authentication pickle: Set your terminal directory with ```cd /home/pi/Documents/GmailSummary```, then run ```python3 generatepickle.py``` to prompt a Google Login page. Allow permission to use the app, and then note the addition of token.pickle to your directory once successful.
 3. Install Docker: ```curl -sSL https://get.docker.com | sh```
 4. Install Portainer, a GUI interface to manage Docker containers and Environment variables
 ```sudo docker run -d -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce```
 5. Access Portainer and create login to view Docker containers: ```http://localhost:9000```
-6. Build the Docker Container
-```cd /home/pi/Documents/GmailSummary```
-```sudo docker build -t gmailsummary .```
-
-7. Modify the following command. Place your OpenAI API Key inside the "" marks. Select "gpt-4" or "gpt3.5-turbo" and use that as OPENAI_ENGINE. Example:
+6. Build the Docker Container: Set your terminal directory with ```cd /home/pi/Documents/GmailSummary```, then run ```sudo docker build -t gmailsummary .``` to build the Docker Container.
+7. Modify the following command. Place your OpenAI API Key inside the quotation marks of ```your-api`key```. Choose "gpt-4" or "gpt3.5-turbo" and use that as OPENAI_ENGINE parameter. Example:
 ```sudo docker run -d --name gmailsummary -p 1337:1337 --restart unless-stopped -e OPENAI_API_KEY="your-api-key" -e OPENAI_ENGINE="gpt-4" gmailsummary```
 8. View Container Logs in Portainer: Home > local > Containers > GmailSummary > Quick actions: Logs
 9. Run the Script: ```https://www.icloud.com/shortcuts/9d5749b5c54d4162a7a47be6f862cb25```
