@@ -240,8 +240,8 @@ def remove_html_and_links(text):
     # Remove code blocks
     text = re.sub(r'{[^{}]*}', '', text, flags=re.DOTALL)
     
-    # Remove single words that begin with a period, asterisk, hash, hyphen, or colon
-    matches = list(re.finditer(r'(\s|^)(\.|\*|#|-|:)[^\s]+', text))
+    # Remove single words that begin with a period, asterisk, hash, hyphen, colon, or at symbol
+    matches = list(re.finditer(r'(\s|^)(\.|\*|#|-|:|@)[^\s]+', text))
     if matches:
         offset = 0
         for match in matches:
@@ -249,6 +249,9 @@ def remove_html_and_links(text):
             text = text[:start - offset] + text[end - offset:]
             offset += end - start
 
+    # Remove extra spaces and multiple consecutive newline characters
+    text = re.sub('\s+', ' ', text)
+    text = re.sub('\n{2,}', '\n', text)
 
     return text.strip()
 
