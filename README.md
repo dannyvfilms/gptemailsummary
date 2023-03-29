@@ -65,3 +65,4 @@ This process requires the python script to be running constantly on a home compu
 1. Support for multiple inboxes
 2. WebUI (draft is in repo but incomplete)
 3. Dynamically change quantity of emails to fill 90% of OpenAI Token Limit
+4. Properly generate a pickle inside the Docker container
