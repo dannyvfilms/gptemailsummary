@@ -240,8 +240,15 @@ def remove_html_and_links(text):
     # Remove code blocks
     text = re.sub(r'{[^{}]*}', '', text, flags=re.DOTALL)
     
-    # Remove single words that begin with a period, asterisk, or hash
-    text = re.sub(r'(?<=\s|^)(\.|\*|#)\w+', '', text)
+    # Remove single words that begin with a period, asterisk, hash, hyphen, or colon
+    matches = list(re.finditer(r'(\s|^)(\.|\*|#|-|:)[^\s]+', text))
+    if matches:
+        offset = 0
+        for match in matches:
+            start, end = match.span()
+            text = text[:start - offset] + text[end - offset:]
+            offset += end - start
+
 
     return text.strip()
 
