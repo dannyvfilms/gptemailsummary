@@ -1,3 +1,4 @@
+wheel
 Flask
 google-auth
 google-auth-oauthlib
