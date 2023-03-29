@@ -60,3 +60,8 @@ This process requires the python script to be running constantly on a home compu
 8. View Container Logs in Portainer: Home > local > Containers > GmailSummary > Quick actions: Logs
 9. Run the Script: ```https://www.icloud.com/shortcuts/9d5749b5c54d4162a7a47be6f862cb25```
 10. Update Environment Variables: Home > local > Containers > GmailSummary > Duplicate/Edit > Env > Deploy the Container
+
+# Planned Features
+1. Support for multiple inboxes
+2. WebUI (draft is in repo but incomplete)
+3. Dynamically change quantity of emails to fill 90% of OpenAI Token Limit
