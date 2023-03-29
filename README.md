@@ -1,46 +1,22 @@
 # GPT Email Summary
 Uses Gmail and OpenAI's APIs to summarize emails through a python server and iOS Shortcut. This usecase was inspired by Justin Alvey's post on Twitter, which I was unable to find the source code for. https://t.co/TLIoW48rLg
 
-This code uses the Gmail API to call for the latest unread emails from the personal section of your inbox. It avoids reading your entire inbox as marketing emails contain HTML code that will likely hit the token limit for OpenAI. The contents of those emails are then given to OpenAI with pre-written instructions (By Justin Alvey with minor additions) to summarize the emails. That output is given to the Shortcut you triggered the process with, and Siri will read out the summary. These emails will also be marked as unread during the process. iOS Shortcuts exist that can use more advanced voices like those from Elevenlabs.
+This code uses the Gmail API to call for the latest unread emails from your inbox. It uses HTML and code filtering to avoid hitting OpenAI's token limit for marketing based emails. The contents of those emails are given to OpenAI with pre-written instructions (By Justin Alvey with minor additions) to summarize the emails. That output is given to an iOS Shortcut, which is used on MacOS or iOS to start the process. Siri will read out the summary, or code has been provided in the Shortcut to integrate with ElevenLabs. All emails will also be marked as read during the process.
 
-This process requires the python script to be running constantly on a home computer or Raspberry Pi. Once I figure out how to do that automatically I will update these instructions. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
+This process requires the python script to be running constantly on a home computer or Raspberry Pi. It has been packaged as a Docker container to be able to run automatically on startup. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
 
-NOTE: This project is being converted to run in a Docker container. I'm not done yet, so old instructions are below. The OPENAI Parameters will need to be swapped out since they point to Docker environment variables right now.
-
-Installation:
-
-New Instructions:
-1. Download the whole git repository
-2. Set your terminal to that folder: ```cd Documents/ChatGPT/GmailSummary```
-3. Run this command to compile the docker container:
-
-```sudo docker build -t gmailsummary .```
-
-4. Run the docker container:
-
-```docker run -p 1337:1337 gmailsummary```
-
-Old Instructions:
-Python Script
-1. Download the python script from this repository
-2. Run this command to download the required components to run the script:
-
-```sudo pip3 install flask google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client openai requests```
-
-3. Choose a folder to run this script in so you can point your terminal to it (e.g. ```Documents/ChatGPT/GmailSummary```)
-4. Set your terminal to that folder: ```cd Documents/ChatGPT/GmailSummary```
-5. To start the python server: ```python3 gmailsummary.py```
-6. Start it later. You don't have everything you need yet.
+Requirements before Installation:
 
 iOS Shortcut
 1. The iOS Shortcut is the method used to trigger the email summary from your iPhone or Mac. Frankly I have no clue how to control this from Android or Windows, as my knowledge of Python is non-existant and I used ChatGPT to code this.
-2. https://www.icloud.com/shortcuts/3be5ae7afee34aeb9afe0955c82de438
+2. https://www.icloud.com/shortcuts/9d5749b5c54d4162a7a47be6f862cb25
 3. The Shortcut includes setup instructions. Enter the port of the computer running this script, or the Cloudflare Tunnel URL. This app uses ```port:1337```
-4. If this port conflicts with something you are using already, modify the port number with a text editor and save the gmailsummary.py file.
 
 Cloudflare Tunnel
 1. To access your Python Server outside of your home (or any other self-hosted applications you may have running) I recommend using a Cloudflare tunnel as described by Crosstalk Solutions
 2. https://www.youtube.com/watch?v=ZvIdFs3M5ic
+3. For Home Assistant users, the Cloudflare tunnel can be run as an add-on to your installation
+4. https://www.youtube.com/watch?v=xXAwT9N-7Hw
 
 Google Cloud Console
 1. Go to console.cloud.google.com on your web browser.
