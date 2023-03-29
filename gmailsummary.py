@@ -241,7 +241,7 @@ def remove_html_and_links(text):
     text = re.sub(r'{[^{}]*}', '', text, flags=re.DOTALL)
     
     # Remove single words that begin with a period, asterisk, or hash
-    text = re.sub(r'\b(\.|\*|#)\w+\b', '', text)
+    text = re.sub(r'(?<=\s|^)(\.|\*|#)\w+', '', text)
 
     return text.strip()
 
