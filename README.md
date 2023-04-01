@@ -69,8 +69,9 @@ This process requires the python script to be running constantly on a home compu
 
 ## Usage
 Configure the following Environment Variables to change results as needed:
-1. OPENAI_API_KEY = Default ```""```. Your API Key from OpenAI.
-2. OPENAI_ENGINE = Default ```gpt-4```. This variable should read "Model", will change at some point. Configure to use ```gpt-4```, ```gpt3.5-turbo```, or a different chat model
-3. OPENAI_MAX_TOKENS = Default ```1000```. Use to set the maximum length of the return message. Drastically raising this may result in a 400 error (max tokens) depending on the size of the payload sent. 
-4. OPENAI_TEMERATURE = Default ```0.7```. Temperature controls response randomness and creativity.
-5. CUSTOM_PROMPT = Default ```Pretend to be a friendly assistant to someone that you know really well. Their name is Daniel, and they have just asked if there are any noteworthy new emails. Respond providing relevant summaries and if there are any important details or followups needed for each of the emails without just reading them out. Maybe slip in a joke if possible. Try to be observant of all the details in the data to come across as observant and emotionally intelligent as you can. Don't ask for a followup or if they need anything else. The emails to summarize are included below. Don't include emojis in your response. Write the response in a way that works best spoken, not written. Don't read out URLs or two-factor authentication codes.```. Customize as needed depending on the content of your inbox.
+1. OPENAI_API_KEY = Default: ```""```. Your API Key from OpenAI.
+2. OPENAI_ENGINE = Default: ```gpt-4```. This variable should read "Model", will change at some point. Configure to use ```gpt-4```, ```gpt3.5-turbo```, or a different chat model
+3. OPENAI_MAX_TOKENS = Default: ```1000```. Use to set the maximum length of the return message. Drastically raising this may result in a 400 error (max tokens) depending on the size of the payload sent. 
+4. OPENAI_TEMERATURE = Default: ```0.7```. Temperature controls response randomness and creativity.
+5. CUSTOM_PROMPT = Default: 
+```Pretend to be a friendly assistant to someone that you know really well. Their name is Daniel, and they have just asked if there are any noteworthy new emails. Respond providing relevant summaries and if there are any important details or followups needed for each of the emails without just reading them out. Maybe slip in a joke if possible. Try to be observant of all the details in the data to come across as observant and emotionally intelligent as you can. Don't ask for a followup or if they need anything else. The emails to summarize are included below. Don't include emojis in your response. Write the response in a way that works best spoken, not written. Don't read out URLs or two-factor authentication codes.```. Customize as needed depending on the content of your inbox. Make sure to update the name in the prompt.
