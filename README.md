@@ -5,9 +5,9 @@ This code uses the Gmail API to call for the latest unread emails from your inbo
 
 This process requires the python script to be running constantly on a home computer or Raspberry Pi. It has been packaged as a Docker container to be able to run automatically on startup. To run this script outside of your home network, it will also require a (free) Cloudflare Tunnel or something similar. See the instructions below.
 
-# Requirements before Installation:
+## Requirements before Installation:
 
-## Google Cloud Console
+### Google Cloud Console
 1. Watch the Google Cloud Console.mp4 video included in this repo.
 2. Go to console.cloud.google.com on your web browser.
 3. Click on the "Select a Project" dropdown menu at the top of the page and click "New Project" to create a new project.
@@ -23,31 +23,31 @@ This process requires the python script to be running constantly on a home compu
 13. Now, you need to set up the OAuth consent screen. Click on "Configure consent screen" and select "External" as the user type.
 14. Add a test user to the OAuth consent screen by clicking on "Add Users" and entering a test email address.
 
-## OpenAI
+### OpenAI
 1. Go to platform.openai.com on your web browser.
 2. Create an account by clicking on the "Sign up" button at the top right corner of the page, then follow the prompts to create your account.
 3. After your account has been created, click on your account profile at the top-right corner of the page and select "API Keys".
 4. Click on "+ Create new secret key" to create a new API key.
 5. Copy the API key that appears on the screen and save it in a safe place. This API key is required to authenticate your Python script when making requests to OpenAI's API.
 
-## ElevenLabs
+### ElevenLabs
 1. Go to https://beta.elevenlabs.io and click your Profile
 2. Your API Key is visible there.
 3. Go to https://api.elevenlabs.io/docs with your API Key to retrieve your Voice ID using Get Voices
 4. Save your API Key and Voice ID for use in the iOS Shortcut.
 
-## iOS Shortcut
+### iOS Shortcut
 1. The iOS Shortcut is the method used to trigger the email summary from your iPhone or Mac. Frankly I have no clue how to control this from Android or Windows, as my knowledge of Python is non-existant and I used ChatGPT to code this.
 2. https://www.icloud.com/shortcuts/9d5749b5c54d4162a7a47be6f862cb25
 3. The Shortcut includes setup instructions. Enter the port of the computer running this script, or the Cloudflare Tunnel URL. This app uses ```port:1337```
 
-## Cloudflare Tunnel
+### Cloudflare Tunnel
 1. To access your Python Server outside of your home (or any other self-hosted applications you may have running) I recommend using a Cloudflare tunnel as described by Crosstalk Solutions
 2. https://www.youtube.com/watch?v=ZvIdFs3M5ic
 3. For Home Assistant users, the Cloudflare tunnel can be run as an add-on to your installation
 4. https://www.youtube.com/watch?v=xXAwT9N-7Hw
 
-# Script Installation
+## Script Installation
 1. Download GmailSummary and put it in a folder of your choice
 2. Create Google Authentication pickle: Set your terminal directory with ```cd /home/pi/Documents/GmailSummary```, then run ```python3 generatepickle.py``` to prompt a Google Login page. Allow permission to use the app, and then note the addition of token.pickle to your directory once successful.
 3. Install Docker: ```curl -sSL https://get.docker.com | sh```
@@ -61,8 +61,16 @@ This process requires the python script to be running constantly on a home compu
 9. Run the Script: ```https://www.icloud.com/shortcuts/9d5749b5c54d4162a7a47be6f862cb25```
 10. Update Environment Variables: Home > local > Containers > GmailSummary > Duplicate/Edit > Env > Deploy the Container
 
-# Planned Features
+## Planned Features
 1. Support for multiple inboxes
 2. WebUI (draft is in repo but incomplete)
 3. Dynamically change quantity of emails to fill 90% of OpenAI Token Limit
 4. Properly generate a pickle inside the Docker container
+
+## Usage
+Configure the following Environment Variables to change results as needed:
+1. OPENAI_API_KEY = Default ```""```. Your API Key from OpenAI.
+2. OPENAI_ENGINE = Default ```gpt-4```. This variable should read "Model", will change at some point. Configure to use ```gpt-4```, ```gpt3.5-turbo```, or a different chat model
+3. OPENAI_MAX_TOKENS = Default ```1000```. Use to set the maximum length of the return message. Drastically raising this may result in a 400 error (max tokens) depending on the size of the payload sent. 
+4. OPENAI_TEMERATURE = Default ```0.7```. Temperature controls response randomness and creativity.
+5. CUSTOM_PROMPT = Default ```Pretend to be a friendly assistant to someone that you know really well. Their name is Daniel, and they have just asked if there are any noteworthy new emails. Respond providing relevant summaries and if there are any important details or followups needed for each of the emails without just reading them out. Maybe slip in a joke if possible. Try to be observant of all the details in the data to come across as observant and emotionally intelligent as you can. Don't ask for a followup or if they need anything else. The emails to summarize are included below. Don't include emojis in your response. Write the response in a way that works best spoken, not written. Don't read out URLs or two-factor authentication codes.```. Customize as needed depending on the content of your inbox.
