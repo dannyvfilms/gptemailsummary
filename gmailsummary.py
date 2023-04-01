@@ -1,10 +1,14 @@
 # Install required components
 from flask import Flask, jsonify, request, render_template
 import google.auth
+from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import googleapiclient.discovery
 from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+import httplib2
+from httplib2 import Http
 import openai
 import os
 import pickle
@@ -13,18 +17,16 @@ import requests
 import base64
 import configparser
 import re
+import logging
+import subprocess
+import textwrap
+import google.auth.transport.requests as tr_requests
+
+# Enable debug level logging for httplib2
+httplib2.debuglevel = 1
+logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
-
-## Commenting out for now. Possible port conflict stops core functionality.
-## Route to serve the index.html file at the root URL
-#@app.route('/')
-#def index():
-#    return render_template('index.html')
-#
-## Start the Flask app on host 0.0.0.0 and port 1337
-#if __name__ == '__main__':
-#    app.run(host='0.0.0.0', port=1337)
 
 # OpenAI API parameters
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
@@ -38,23 +40,25 @@ openai.api_key = OPENAI_API_KEY
 
 # Set up Google API credentials
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+
 creds = None
+# Check if token.pickle file exists
 if os.path.exists('token.pickle'):
     with open('token.pickle', 'rb') as token:
         creds = pickle.load(token)
 
+# If there are no (valid) credentials available, let the user log in.
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     else:
+        # If not, open the authorization URL in the browser
         flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
         creds = flow.run_local_server(port=0)
-        
-        # Print the authorization URL
         auth_url, _ = flow.authorization_url(prompt='consent')
         print(f"Please visit this URL to authorize the app: {auth_url}", flush=True)
-        
 
+    # Save the credentials for the next run
     with open('token.pickle', 'wb') as token:
         pickle.dump(creds, token)
 
@@ -64,35 +68,92 @@ gmail_service = build('gmail', 'v1', credentials=creds)
 # List that will store the latest fetched emails
 latest_emails = []
 
+# Variable that will store the total number of characters for emails
+total_characters = 0
+max_characters = int(os.environ.get('EMAIL_MAXCHARACTERS'))
+
+## Commenting out for now. Possible port conflict stops core functionality.
+## Route to serve the index.html file at the root URL
+#@app.route('/')
+#def index():
+#    return render_template('index.html')
+#
+## Start the Flask app on host 0.0.0.0 and port 1337
+#if __name__ == '__main__':
+#    app.run(host='0.0.0.0', port=1337)
+
+
+# Add the count_characters function
+def count_characters(text):
+    global total_characters
+    char_count = len(text)
+    total_characters += char_count
+    print(f"Character count for this email: {char_count}", flush=True)
+    print(f"Total characters processed so far: {total_characters}", flush=True)
+    
+def format_text_with_boxes(text, design='shell', padding='a1l2'):
+    command = f'echo "{text}" | boxes -d {design} -p {padding}'
+    result = subprocess.run(command, stdout=subprocess.PIPE, shell=True, text=True)
+    return result.stdout
+
 def fetch_latest_emails():
-    # Fetch a list of messages matching the query, and extract a list of messages from the results, or an empty list if none were found
-    global latest_emails
+    global latest_emails, total_characters
     query = "is:unread -category:spam"
-    results = gmail_service.users().messages().list(userId='me', q=query, maxResults=20).execute()   
-    messages = results.get('messages', [])   
 
     # Initialize an empty list to store the latest emails
-    latest_emails = []   
+    latest_emails = []
+
+    # Initialize a variable to store the total character count
+    total_characters = 0
+
+    # Start the while loop
+    print("Starting while loop", flush=True)
 
     # Fetch the full message details and extract label IDs and message headers
-    for message in messages:
-        msg = gmail_service.users().messages().get(userId='me', id=message['id'], format='full').execute()
-        labels = msg.get("labelIds", [])
-        headers = msg['payload']['headers']
+    while total_characters < max_characters:
+        print("Total characters so far: ", total_characters, flush=True)
+        print("Max characters: ", max_characters, flush=True)
 
-        if 'UNREAD' in labels:
-            payload = msg['payload']
-            parts = payload.get("parts")
-            decoded_data = None
+        # Fetch the next batch of messages
+        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=50).execute()
+        messages = results.get('messages', [])
+
+        # Add a log statement to print the number of messages being fetched
+        print(f"Fetched {len(messages)} messages", flush=True)
+
+        # If no messages are found, break out of the loop
+        if not messages:
+            break 
+
+        # Fetch the full message details and extract label IDs and message headers
+        for message in messages:
+            print("Processing message: ", message['id'], flush=True)
+            msg = gmail_service.users().messages().get(userId='me', id=message['id'], format='full').execute()
+            labels = msg.get("labelIds", [])
+            headers = msg['payload']['headers']
+
+            # Add a log statement to print the number of characters for each email
+            decoded_data = remove_html_and_links(msg['snippet'])
+            count_characters(decoded_data)
+            print(f"Character count for this email: {len(decoded_data)}", flush=True)
+
+            # Add a log statement to print the total number of characters processed so far
+            print(f"Total characters processed so far: {total_characters}", flush=True)
+
+            if 'UNREAD' in labels:
+                payload = msg['payload']
+                parts = payload.get("parts")
+                decoded_data = None
 
             # Extract the subject from the headers before processing the parts
             subject = next((header['value'] for header in headers if header['name'] == 'Subject'), 'No Subject')
 
             # Initialize decoded_data variable for each message
-            decoded_data = None
+            decoded_data = ""
 
             # Extract the data from the first part, or the payload itself if there are no parts
             if parts:
+                decoded_file_data = None
                 for part in parts:
                     content_type = part.get("mimeType", "")
                     file_data = part.get("body", {}).get("data")
@@ -158,6 +219,8 @@ def fetch_latest_emails():
                     decoded_data = "No content"
                 event_details = decoded_data
 
+            # Call the count_characters function and pass the decoded_data
+            decoded_data = remove_html_and_links(decoded_data)
 
             # Create a dictionary with email details
             mail_data = {
@@ -168,9 +231,13 @@ def fetch_latest_emails():
                 'internalDate': int(msg['internalDate'])
             }
 
-            # Add the email details to the latest emails list, stopping the loop if the maximum number of emails has been fetched
-            latest_emails.append(mail_data)   
-            if len(latest_emails) >= 10:
+            # Add the email details to the latest emails list, breaking the loop if the maximum number of characters has been reached
+            latest_emails.append(mail_data)
+            
+            # Call the count_characters function and pass the decoded_data
+            count_characters(decoded_data)
+
+            if total_characters >= max_characters:
                 break
 
     # Sort the emails by internal date (oldest first)
@@ -180,9 +247,10 @@ def fetch_latest_emails():
     latest_emails = sorted_emails
                 
     # Print the latest_emails list to the terminal
-    print("\n" + "#" * 45 + "\n    Latest Emails Fetched:   \n" + "#" * 45 + "\n")
-    print(f"{latest_emails}")
-
+    print("\n" + "#" * 45 + "\n    Latest Emails Fetched:   \n" + "#" * 45 + "\n", flush=True)
+    print(f"{latest_emails}", flush=True)
+    
+    return latest_emails
 
 @app.route('/fetch_emails', methods=['GET'])
 def fetch_emails():
@@ -205,6 +273,9 @@ def mark_emails_read(email_ids):
             print(f"An error occurred while marking email {email_id} as read: {e}")
 
 def remove_html_and_links(text):
+    # Convert empty strings
+    if text is None:
+        text = ""
     # Remove unwanted HTML code
     text = re.sub('<table.*?</table>', '', text, flags=re.DOTALL)
     
@@ -256,10 +327,14 @@ def remove_html_and_links(text):
     return text.strip()
 
 @app.route('/get_emails_summary', methods=['POST'])
-def get_emails_summary():
+def get_emails_summary_route():
     # Fetch the latest emails
-    fetch_latest_emails()
+    latest_emails = fetch_latest_emails()
 
+    # Call the get_emails_summary function with the latest_emails list
+    return get_emails_summary(latest_emails)
+
+def get_emails_summary(latest_emails):
     # Get the list of email IDs from the request
     email_ids_string = request.form.get('ids')
 
@@ -271,6 +346,16 @@ def get_emails_summary():
 
     # Find the emails with the given ids in the latest_emails list
     emails = [e for e in latest_emails if e['id'] in email_ids and e.get('subject', '') != 'No subject' and e.get('content', '') != 'No content']
+
+    # Get the number of emails summarized
+    num_emails = len(emails)
+
+    # Get the unique senders' names
+    unique_senders = set([e['from'] for e in emails])
+    unique_senders_str = ', '.join(unique_senders)
+    
+    # Wrap the unique senders' string to 150 characters
+    unique_senders_str = textwrap.fill(unique_senders_str, width=150)
 
     # Concatenate the email content
     email_content = ""
@@ -344,9 +429,22 @@ def get_emails_summary():
     except Exception as e:
         print(f"Error marking emails as read: {e}", flush=True)
 
+    # Extract token usage from response JSON
+    usage = response_json['usage']
+    prompt_tokens = usage['prompt_tokens']
+    completion_tokens = usage['completion_tokens']
+    total_tokens = usage['total_tokens']
+
     # Return the summary as plain text instead of JSON
     print("\n" + "#" * 45 + "\n    OpenAI Response:   \n" + "#" * 45 + "\n", flush=True)
     print(summary, flush=True)
+    
+    # Wrap the summary string to 150 characters per line
+    summary_wrapped = textwrap.fill(summary, width=150)
+
+    final_summary = format_text_with_boxes(f"Run Completed Successfully! \n \nAmount: {num_emails}\nSenders: {unique_senders_str}\n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens}\n \nResponse: \n{summary_wrapped}")
+    print(final_summary)
+    
     return jsonify({"summary": summary})
 
 if __name__ == '__main__':
