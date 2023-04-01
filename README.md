@@ -70,7 +70,7 @@ This process requires the python script to be running constantly on a home compu
 ## Usage
 Configure the following Environment Variables to change results as needed:
 1. OPENAI_API_KEY = Default: ```""```. Your API Key from OpenAI.
-2. OPENAI_ENGINE = Default: ```gpt-4```. This variable should read "Model", will change at some point. Configure to use ```gpt-4```, ```gpt3.5-turbo```, or a different chat model
+2. OPENAI_ENGINE = Default: ```gpt-4```. Configure to use ```gpt-4```, ```gpt3.5-turbo```, or a different chat model. This variable should read "Model", will change at some point. 
 3. OPENAI_MAX_TOKENS = Default: ```1000```. Use to set the maximum length of the return message. Drastically raising this may result in a 400 error (max tokens) depending on the size of the payload sent. 
 4. OPENAI_TEMERATURE = Default: ```0.7```. Temperature controls response randomness and creativity.
 5. CUSTOM_PROMPT = Default: 
