@@ -9,12 +9,14 @@ COPY . /app
 
 # Install build dependencies
 RUN apt-get update && \
-	apt-get install -y --no-install-recommends \
-	apt-utils \
-	build-essential \
-	libssl-dev \
-	libffi-dev \
-	python3-dev 
+    apt-get install -y --no-install-recommends \
+        apt-utils \
+        build-essential \
+        libssl-dev \
+        libffi-dev \
+        python3-dev \
+        boxes && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install packages
 RUN pip install --trusted-host pypi.python.org -r requirements.txt
@@ -28,6 +30,10 @@ ENV CUSTOM_PROMPT="Pretend to be a friendly assistant to someone that you know r
 ENV OPENAI_ENGINE="gpt-4"
 ENV OPENAI_MAX_TOKENS=1000
 ENV OPENAI_TEMPERATURE=0.7
+ENV EMAIL_MAXCHARACTERS=25000
+ENV EMAIL_MAXEMAILS=10
+ENV EMAIL_VARIABLEQUANTITY=true
+ENV PYTHONUNBUFFERED 1
 
 # Run app.py when the container launches
 CMD ["python", "gmailsummary.py"]
