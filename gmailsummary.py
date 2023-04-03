@@ -131,9 +131,18 @@ def fetch_latest_emails():
             msg = gmail_service.users().messages().get(userId='me', id=message['id'], format='full').execute()
             labels = msg.get("labelIds", [])
             headers = msg['payload']['headers']
+            
+            # Extract sender and subject from the headers
+            sender, subject = "", ""
+            for header in headers:
+                if header["name"] == "From":
+                    sender = header["value"]
+                elif header["name"] == "Subject":
+                    subject = header["value"]
 
             # Add a log statement to print the number of characters for each email
-            decoded_data = remove_html_and_links(msg['snippet'])
+            decoded_body = remove_html_and_links(msg['snippet'])
+            decoded_data = f"Sender: {sender}\nSubject: {subject}\nBody: {decoded_body}"
             count_characters(decoded_data)
             print(f"Character count for this email: {len(decoded_data)}", flush=True)
 
@@ -310,7 +319,19 @@ def remove_html_and_links(text):
 
     # Remove code blocks
     text = re.sub(r'{[^{}]*}', '', text, flags=re.DOTALL)
-    
+
+    # Remove a:visited and a:link
+    text = re.sub(r'a:visited|a:link', '', text)
+
+    # Remove patterns like a[class="btn"], div[class="column"], etc.
+    text = re.sub(r'\w+\[class="[^"]+"\]', '', text)
+
+    # Remove multiple consecutive comment tags
+    text = re.sub(r'(<!--\s*)+', '', text)
+
+    # Remove specific words followed by a potential comma
+    text = re.sub(r'\b(p|span|font|td|div|li|blockquote|table|img)(,)?\b', '', text)
+
     # Remove single words that begin with a period, asterisk, hash, hyphen, colon, or at symbol
     matches = list(re.finditer(r'(\s|^)(\.|\*|#|-|:|@)[^\s]+', text))
     if matches:
@@ -319,7 +340,7 @@ def remove_html_and_links(text):
             start, end = match.span()
             text = text[:start - offset] + text[end - offset:]
             offset += end - start
-
+            
     # Remove extra spaces and multiple consecutive newline characters
     text = re.sub('\s+', ' ', text)
     text = re.sub('\n{2,}', '\n', text)
