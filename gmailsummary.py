@@ -20,6 +20,7 @@ import re
 import logging
 import subprocess
 import textwrap
+import threading
 import google.auth.transport.requests as tr_requests
 
 # Enable debug level logging for httplib2
@@ -92,9 +93,13 @@ def count_characters(text):
     print(f"Total characters processed so far: {total_characters}", flush=True)
     
 def format_text_with_boxes(text, design='shell', padding='a1l2'):
-    command = f'echo "{text}" | boxes -d {design} -p {padding}'
-    result = subprocess.run(command, stdout=subprocess.PIPE, shell=True, text=True)
-    return result.stdout
+    echo_process = subprocess.Popen(['echo', text], stdout=subprocess.PIPE)
+    boxes_process = subprocess.Popen(['boxes', '-d', design, '-p', padding], stdin=echo_process.stdout, stdout=subprocess.PIPE, text=True)
+
+    echo_process.stdout.close()  # Allow echo_process to receive a SIGPIPE if boxes_process exits.
+    output = boxes_process.communicate()[0]
+    echo_process.wait()
+    return output
 
 def fetch_latest_emails():
     global latest_emails, total_characters
@@ -105,17 +110,20 @@ def fetch_latest_emails():
 
     # Initialize a variable to store the total character count
     total_characters = 0
+    
+    # Read environment variables
+    variable_quantity = os.environ.get("EMAIL_VARIABLEQUANTITY", "false").lower() == "true"
+    max_emails = int(os.environ.get("EMAIL_MAXEMAILS", 50))
 
     # Start the while loop
     print("Starting while loop", flush=True)
 
     # Fetch the full message details and extract label IDs and message headers
-    while total_characters < max_characters:
-        print("Total characters so far: ", total_characters, flush=True)
-        print("Max characters: ", max_characters, flush=True)
-
-        # Fetch the next batch of messages
-        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=50).execute()
+    while (variable_quantity and total_characters < max_characters) or len(latest_emails) < max_emails:
+        
+        # Calculate the remaining emails to fetch
+        remaining_emails = max_emails - len(latest_emails)
+        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=min(50, remaining_emails) if not variable_quantity else 50).execute()
         messages = results.get('messages', [])
 
         # Add a log statement to print the number of messages being fetched
@@ -330,7 +338,10 @@ def remove_html_and_links(text):
     text = re.sub(r'(<!--\s*)+', '', text)
 
     # Remove specific words followed by a potential comma
-    text = re.sub(r'\b(p|span|font|td|div|li|blockquote|table|img)(,)?\b', '', text)
+    text = re.sub(r'\b(p|span|font|td|div|li|blockquote|table|img|h1|h2|h3|h4|h5|ol|ul|th)(,)?\b', '', text)
+
+    # Remove consecutive commas
+    text = re.sub(r'(,\s*){2,}', ', ', text)
 
     # Remove single words that begin with a period, asterisk, hash, hyphen, colon, or at symbol
     matches = list(re.finditer(r'(\s|^)(\.|\*|#|-|:|@)[^\s]+', text))
@@ -340,7 +351,7 @@ def remove_html_and_links(text):
             start, end = match.span()
             text = text[:start - offset] + text[end - offset:]
             offset += end - start
-            
+
     # Remove extra spaces and multiple consecutive newline characters
     text = re.sub('\s+', ' ', text)
     text = re.sub('\n{2,}', '\n', text)
@@ -354,6 +365,12 @@ def get_emails_summary_route():
 
     # Call the get_emails_summary function with the latest_emails list
     return get_emails_summary(latest_emails)
+
+def mark_emails_read_in_background(email_ids):
+    try:
+        mark_emails_read(email_ids)
+    except Exception as e:
+        print(f"Error marking emails as read: {e}", flush=True)
 
 def get_emails_summary(latest_emails):
     # Get the list of email IDs from the request
@@ -442,13 +459,6 @@ def get_emails_summary(latest_emails):
     except KeyError:
         print("Error extracting summary from OpenAI API response.", flush=True)
         return jsonify({"error": "Failed to extract summary from OpenAI API response."})
-    
-    # Mark the emails as read
-    print("\n" + "#" * 45 + "\n    Marking emails as read.   \n" + "#" * 45 + "\n", flush=True)
-    try:
-        mark_emails_read(email_ids)
-    except Exception as e:
-        print(f"Error marking emails as read: {e}", flush=True)
 
     # Extract token usage from response JSON
     usage = response_json['usage']
@@ -466,7 +476,13 @@ def get_emails_summary(latest_emails):
     final_summary = format_text_with_boxes(f"Run Completed Successfully! \n \nAmount: {num_emails}\nSenders: {unique_senders_str}\n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens}\n \nResponse: \n{summary_wrapped}")
     print(final_summary)
     
-    return jsonify({"summary": summary})
+    statistics = f"Summarized {num_emails} Emails. \n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens} \n \n Senders: {unique_senders_str}"
+    
+    # Start a separate thread to mark the emails as read
+    mark_emails_read_thread = threading.Thread(target=mark_emails_read_in_background, args=(email_ids,))
+    mark_emails_read_thread.start()
+
+    return jsonify({"summary": summary, "statistics": statistics})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=1337)
