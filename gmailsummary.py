@@ -1,16 +1,9 @@
 # Install required components
 from flask import Flask, jsonify, request, render_template
-import google.auth
-from google_auth_httplib2 import AuthorizedHttp
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-import googleapiclient.discovery
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import httplib2
-from httplib2 import Http
 import openai
 import os
+import sys
+from io import StringIO
 import pickle
 import logging
 import requests
@@ -22,10 +15,14 @@ import subprocess
 import textwrap
 import threading
 import google.auth.transport.requests as tr_requests
-
-# Enable debug level logging for httplib2
-httplib2.debuglevel = 1
-logging.basicConfig(level=logging.DEBUG)
+import imaplib
+import email
+from email.header import decode_header
+from email.charset import Charset, QP
+import asyncio
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
+from collections import defaultdict
 
 app = Flask(__name__)
 
@@ -36,35 +33,45 @@ OPENAI_ENGINE = os.environ.get('OPENAI_ENGINE')
 OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS'))
 OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE'))
 
+# IMAP Email parameters
+EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER")
+EMAIL_PROVIDERS = {
+    "gmail": "imap.gmail.com",
+    "outlook": "imap-mail.outlook.com",
+    "yahoo": "imap.mail.yahoo.com",
+    "aol": "imap.aol.com",
+    "icloud": "imap.mail.me.com",
+    "zoho": "imap.zoho.com",
+    "gmx": "imap.gmx.com",
+    "fastmail": "imap.fastmail.com",
+    "protonmail": "imap.protonmail.com",  # ProtonMail requires a paid plan and Bridge for IMAP access
+    "office365": "outlook.office365.com",
+    "mailru": "imap.mail.ru",
+    "yandex": "imap.yandex.com",
+    "cpanel": "mail.yourdomain.com",  # Replace 'yourdomain.com' with your actual domain
+    "dovecot": "mail.yourdomain.com",  # Replace 'yourdomain.com' with your actual domain
+    "courier": "mail.yourdomain.com",  # Replace 'yourdomain.com' with your actual domain
+    "hmailserver": "mail.yourdomain.com",  # Replace 'yourdomain.com' with your actual domain
+}
+
+accounts = [
+    {
+        "email": "account1@gmail.com",
+        "password": "redacted",
+        "provider": "gmail"
+    },
+    {
+        "email": "account2@outlook.com",
+        "password": "redacted",
+        "provider": "outlook"
+    }
+]
+
+
 # Set up OpenAI API credentials
 openai.api_key = OPENAI_API_KEY
-
-# Set up Google API credentials
-SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
-
-creds = None
-# Check if token.pickle file exists
-if os.path.exists('token.pickle'):
-    with open('token.pickle', 'rb') as token:
-        creds = pickle.load(token)
-
-# If there are no (valid) credentials available, let the user log in.
-if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    else:
-        # If not, open the authorization URL in the browser
-        flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-        creds = flow.run_local_server(port=0)
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        print(f"Please visit this URL to authorize the app: {auth_url}", flush=True)
-
-    # Save the credentials for the next run
-    with open('token.pickle', 'wb') as token:
-        pickle.dump(creds, token)
-
-# Create a Gmail service instance
-gmail_service = build('gmail', 'v1', credentials=creds)
 
 # List that will store the latest fetched emails
 latest_emails = []
@@ -73,25 +80,7 @@ latest_emails = []
 total_characters = 0
 max_characters = int(os.environ.get('EMAIL_MAXCHARACTERS'))
 
-## Commenting out for now. Possible port conflict stops core functionality.
-## Route to serve the index.html file at the root URL
-#@app.route('/')
-#def index():
-#    return render_template('index.html')
-#
-## Start the Flask app on host 0.0.0.0 and port 1337
-#if __name__ == '__main__':
-#    app.run(host='0.0.0.0', port=1337)
-
-
-# Add the count_characters function
-def count_characters(text):
-    global total_characters
-    char_count = len(text)
-    total_characters += char_count
-    print(f"Character count for this email: {char_count}", flush=True)
-    print(f"Total characters processed so far: {total_characters}", flush=True)
-    
+# Create nice text boxes in logs
 def format_text_with_boxes(text, design='shell', padding='a1l2'):
     echo_process = subprocess.Popen(['echo', text], stdout=subprocess.PIPE)
     boxes_process = subprocess.Popen(['boxes', '-d', design, '-p', padding], stdin=echo_process.stdout, stdout=subprocess.PIPE, text=True)
@@ -101,193 +90,221 @@ def format_text_with_boxes(text, design='shell', padding='a1l2'):
     echo_process.wait()
     return output
 
-def fetch_latest_emails():
+# Add the count_characters function
+def count_characters(text):
+    global total_characters
+    char_count = len(text)
+    total_characters += char_count
+    print("Input:\n", text, flush=True)
+    
+    # Print the current character count
+    count_message = format_text_with_boxes(f"Character count for this email: {char_count}\nTotal characters processed so far: {total_characters}")
+    print(count_message, flush=True)
+
+async def fetch_latest_emails(email_event):
     global latest_emails, total_characters
-    query = "is:unread -category:spam"
 
     # Initialize an empty list to store the latest emails
     latest_emails = []
 
     # Initialize a variable to store the total character count
     total_characters = 0
-    
+
     # Read environment variables
     variable_quantity = os.environ.get("EMAIL_VARIABLEQUANTITY", "false").lower() == "true"
     max_emails = int(os.environ.get("EMAIL_MAXEMAILS", 50))
+    max_characters = int(os.environ.get("EMAIL_MAXCHARACTERS", 10000))  # Added EMAIL_MAXCHARACTERS variable
 
-    # Start the while loop
-    print("Starting while loop", flush=True)
+    # Print the while loop settings
+    start_message = format_text_with_boxes(f"Creating Email Payload. Settings for the run:\n \nVariable Quantity: {variable_quantity}\nMax characters: {max_characters}\nMax emails: {max_emails}\n \nStarting the loop.")
+    print(start_message, flush=True)
+    
+    imaps = []
+    message_numbers_list = []
+    processed_emails_ids_list = []
 
-    # Fetch the full message details and extract label IDs and message headers
-    while (variable_quantity and total_characters < max_characters) or len(latest_emails) < max_emails:
+    # Iterate over the accounts and fetch emails
+    for account in accounts:
+        email_address = account["email"]
+        email_password = account["password"]
+        email_provider = account["provider"]
+
+        # Connect to the IMAP server
+        imap_url = EMAIL_PROVIDERS.get(email_provider.lower(), "imap.gmail.com")
+        imap = imaplib.IMAP4_SSL(imap_url)
+        imap.login(email_address, email_password)
+
+        # Select the mailbox
+        imap.select("inbox")
+
+        summarized_folder = create_and_return_summarized_folder(imap)
+
+        # Search for all unread emails that are not spam and not in the Summarized folder
+        status, message_numbers = imap.search('UTF-8', f'UNSEEN NOT X-GM-LABELS SPAM NOT X-GM-LABELS "{summarized_folder}"')
+        message_numbers = message_numbers[0].split()
+
+        # Reverse the message numbers to fetch newest to oldest
+        message_numbers = message_numbers[::-1]
         
-        # Calculate the remaining emails to fetch
-        remaining_emails = max_emails - len(latest_emails)
-        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=min(50, remaining_emails) if not variable_quantity else 50).execute()
-        messages = results.get('messages', [])
+        # Add imap connection and message numbers to their respective lists
+        imaps.append(imap)
+        message_numbers_list.append(message_numbers)
 
-        # Add a log statement to print the number of messages being fetched
-        print(f"Fetched {len(messages)} messages", flush=True)
+        print(f"Initial message_numbers: {message_numbers}", flush=True)  # Debug statement added
+    
+    # Initialize the processed_email_ids_list
+    processed_email_ids_list = [set() for _ in range(len(accounts))]
+    
+    # Add a flag to break out of the outer while loop
+    stop_loop = False
+    
+    current_account_index = 0
+    num_accounts = len(accounts)
+    
+    while not email_event.is_set() and not stop_loop:
+        all_accounts_empty = True
 
-        # If no messages are found, break out of the loop
-        if not messages:
-            break 
+        for account_index, account in enumerate(accounts):
+            email_address = account["email"]
+            email_password = account["password"]
+            email_provider = account["provider"]
 
-        # Fetch the full message details and extract label IDs and message headers
-        for message in messages:
-            print("Processing message: ", message['id'], flush=True)
-            msg = gmail_service.users().messages().get(userId='me', id=message['id'], format='full').execute()
-            labels = msg.get("labelIds", [])
-            headers = msg['payload']['headers']
+            # Get the current imap connection and message numbers
+            imap = imaps[account_index]
+            message_numbers = message_numbers_list[account_index]
+
+            # Update the message_numbers list to include new unread, non-spam emails
+            status, new_message_numbers = imap.search('UTF-8', 'UNSEEN')
+            new_message_numbers = new_message_numbers[0].split()
+            message_numbers = list(set(message_numbers) | set(new_message_numbers))
+
+            # Update the message_numbers_list for the current account
+            message_numbers_list[account_index] = message_numbers
             
-            # Extract sender and subject from the headers
-            sender, subject = "", ""
-            for header in headers:
-                if header["name"] == "From":
-                    sender = header["value"]
-                elif header["name"] == "Subject":
-                    subject = header["value"]
+            # Remove processed email IDs from message_numbers
+            message_numbers = [msg_num for msg_num in message_numbers if msg_num not in processed_email_ids_list[account_index]]
 
-            # Add a log statement to print the number of characters for each email
-            decoded_body = remove_html_and_links(msg['snippet'])
-            decoded_data = f"Sender: {sender}\nSubject: {subject}\nBody: {decoded_body}"
-            count_characters(decoded_data)
-            print(f"Character count for this email: {len(decoded_data)}", flush=True)
+            if not message_numbers:
+                print(f"No new emails found for account {email_address}.", flush=True)
+                continue
 
-            # Add a log statement to print the total number of characters processed so far
-            print(f"Total characters processed so far: {total_characters}", flush=True)
+            all_accounts_empty = False
+            message_index = 0
 
-            if 'UNREAD' in labels:
-                payload = msg['payload']
-                parts = payload.get("parts")
-                decoded_data = None
+            if message_index < len(message_numbers):
+                message_number = message_numbers[message_index]
+                message_index += 1
+                _, msg_data_response = imap.fetch(message_number, "(BODY.PEEK[])")
 
-            # Extract the subject from the headers before processing the parts
-            subject = next((header['value'] for header in headers if header['name'] == 'Subject'), 'No Subject')
+                for response_part in msg_data_response:
+                    if isinstance(response_part, tuple):
+                        msg = email.message_from_bytes(response_part[1])
+                        subject, _ = decode_header(msg["Subject"])[0]
+                        sender, _ = decode_header(msg["From"])[0]
 
-            # Initialize decoded_data variable for each message
-            decoded_data = ""
+                        if isinstance(subject, bytes):
+                            subject = subject.decode()
+                        if isinstance(sender, bytes):
+                            sender = sender.decode()
 
-            # Extract the data from the first part, or the payload itself if there are no parts
-            if parts:
-                decoded_file_data = None
-                for part in parts:
-                    content_type = part.get("mimeType", "")
-                    file_data = part.get("body", {}).get("data")
-
-                    if file_data:
-                        file_data = file_data.replace("-", "+").replace("_", "/")
-                        decoded_file_data = base64.b64decode(file_data).decode("utf-8")
-
-                    # If 'multipart/alternative' content type is found, process the subparts
-                    if 'multipart/alternative' in content_type:
-                        sub_parts = part.get("parts", [])
-                        for sub_part in sub_parts:
-                            sub_content_type = sub_part.get("mimeType", "")
-                            if 'text/plain' in sub_content_type:
-                                file_data = sub_part.get("body", {}).get("data")
-                                if file_data:
-                                    file_data = file_data.replace("-", "+").replace("_", "/")
-                                    decoded_data = base64.b64decode(file_data).decode("utf-8")
+                        decoded_body = ""
+                        if msg.is_multipart():
+                            for part in msg.walk():
+                                if part.get_content_type() == 'text/plain':
+                                    charset = part.get_content_charset()  # Get the charset from the email part
+                                    if charset:  # If charset is found, use it for decoding
+                                        try:
+                                            decoded_body = part.get_payload(decode=True).decode(charset, errors='replace')
+                                        except LookupError:  # If the provided charset is not recognized, fall back to utf-8
+                                            decoded_body = part.get_payload(decode=True).decode('utf-8', errors='replace')
+                                    else:  # If charset is not found, use utf-8
+                                        decoded_body = part.get_payload(decode=True).decode('utf-8', errors='replace')
                                     break
-                    elif 'text/calendar' in content_type:
-                        decoded_data = decoded_file_data
-                        break
-            else:
-                file_data = payload.get("body", {}).get("data")
-                if file_data:
-                    file_data = file_data.replace("-", "+").replace("_", "/")
-                    decoded_data = base64.b64decode(file_data).decode("utf-8")
+                        else:
+                            decoded_body = msg.get_payload(decode=True).decode(errors='replace')
 
-            if file_data:   
-                file_data = file_data.replace("-", "+").replace("_", "/")   
-                decoded_data = base64.b64decode(file_data)   
-                if isinstance(decoded_data, bytes):   
-                    decoded_data = decoded_data.decode("utf-8")   
+                        # Call remove_html_and_links on decoded_body to get the cleaned text
+                        cleaned_body = remove_html_and_links(decoded_body)
 
-            # Check if the message is a calendar event
-            sender = next((header['value'] for header in headers if header['name'] == 'From'), 'Unknown Sender')
-            is_calendar_event = False
-            event_details = ""
+                        # Construct the decoded_data string with the cleaned body
+                        decoded_data = f"Sender: {sender}\nSubject: {subject}\nBody: {cleaned_body}"
 
-            if parts:
-                for part in parts:
-                    content_type = part.get("mimeType", "")
-                    if 'text/calendar' in content_type:
-                        is_calendar_event = True
-                        file_data = part.get("body", {}).get("data")
-                        break
-            else:
-                content_type = payload.get("mimeType", "")
-                if 'text/calendar' in content_type:
-                    is_calendar_event = True
-                    file_data = payload.get("body", {}).get("data")
+                        # Count characters in the decoded_data
+                        count_characters(decoded_data)
 
-            if is_calendar_event:
-                sender = 'Calendar'
+                        if variable_quantity and total_characters >= max_characters:
+                            stop_loop = True
+                            break
+                        elif not variable_quantity and len(latest_emails) >= max_emails:
+                            stop_loop = True
+                            break
 
-                if file_data:
-                    file_data = file_data.replace("-", "+").replace("_", "/")
-                    decoded_data = base64.b64decode(file_data)
-                    event_details = decoded_data.decode('utf-8') if isinstance(decoded_data, bytes) else decoded_data
-            else:
-                # If the message body is empty or contains no content, set a default value
-                if not decoded_data:
-                    decoded_data = "No content"
-                event_details = decoded_data
+                        mail_data = {
+                            'id': message_number.decode(),
+                            'account': email_address,  # Add the account identifier
+                            'subject': subject,
+                            'from': sender,
+                            'body': cleaned_body,
+                            'internalDate': email.utils.parsedate_to_datetime(msg["Date"]).timestamp() * 1000
+                        }
 
-            # Call the count_characters function and pass the decoded_data
-            decoded_data = remove_html_and_links(decoded_data)
+                        latest_emails.append(mail_data)
 
-            # Create a dictionary with email details
-            mail_data = {
-                'id': msg['id'],
-                'subject': subject,  # Use the extracted subject
-                'from': sender,
-                'body': event_details,
-                'internalDate': int(msg['internalDate'])
-            }
+                # Remove the processed email from the message_numbers list
+                message_numbers = message_numbers[1:]
+                message_numbers_list[account_index] = message_numbers
+                processed_email_ids_list[account_index].add(message_number)
+                
+        # Move to the next account in a round-robin fashion
+        current_account_index = (current_account_index + 1) % num_accounts
 
-            # Add the email details to the latest emails list, breaking the loop if the maximum number of characters has been reached
-            latest_emails.append(mail_data)
-            
-            # Call the count_characters function and pass the decoded_data
-            count_characters(decoded_data)
+        # Get the updated account information
+        account = accounts[current_account_index]
+        email_address = account["email"]
+        email_password = account["password"]
+        email_provider = account["provider"]
 
-            if total_characters >= max_characters:
-                break
-
+        # Update the imap connection and message numbers for the next account
+        imap = imaps[current_account_index]
+        message_numbers = message_numbers_list[current_account_index]
+    
+        if all_accounts_empty:
+            print("No new emails found in all accounts. Exiting loop.", flush=True)
+            break
+    
     # Sort the emails by internal date (oldest first)
     sorted_emails = sorted(latest_emails, key=lambda email: email['internalDate'])
 
     # Update the latest_emails global variable
     latest_emails = sorted_emails
+    
+    # Find the emails with the given ids in the latest_emails list
+    emails = [e for e in latest_emails if e.get('subject', '') != 'No subject' and e.get('body', '') != 'No content']
+
+    # Get the number of emails summarized
+    num_emails = len(emails)
+
+    # Get the unique senders' names
+    unique_senders = set([e['from'] for e in emails])
+    unique_senders_str = ', '.join(unique_senders)
+    
+    # Wrap the unique senders' string to 150 characters
+    unique_senders_str = textwrap.fill(unique_senders_str, width=150)
                 
     # Print the latest_emails list to the terminal
     print("\n" + "#" * 45 + "\n    Latest Emails Fetched:   \n" + "#" * 45 + "\n", flush=True)
     print(f"{latest_emails}", flush=True)
     
+    payload_ready = format_text_with_boxes(f"Payload Generated.\n \nAmount: {num_emails}\nSenders: {unique_senders_str}\n \nSettings for the run:\n \nVariable Quantity: {variable_quantity}\nMax characters: {max_characters}\nMax emails: {max_emails}")
+    print(payload_ready, flush=True)
+    
     return latest_emails
 
-@app.route('/fetch_emails', methods=['GET'])
-def fetch_emails():
-    fetch_latest_emails()
-    return jsonify(latest_emails)
-
-def mark_emails_read(email_ids):
-    # Marks a list of email IDs as read using the Gmail API.
-    service = googleapiclient.discovery.build('gmail', 'v1', credentials=creds)
-
-    for email_id in email_ids:
-        try:
-            service.users().messages().modify(
-                userId="me",
-                id=email_id,
-                body={"removeLabelIds": ["UNREAD"]}
-            ).execute()
-            print(f"Marked email {email_id} as read.")
-        except Exception as e:
-            print(f"An error occurred while marking email {email_id} as read: {e}")
+async def start_email_monitor():
+    email_event = asyncio.Event()
+    while True:
+        await fetch_latest_emails(email_event)
+        await asyncio.sleep(60)  # Adjust the interval as needed
 
 def remove_html_and_links(text):
     # Convert empty strings
@@ -358,32 +375,100 @@ def remove_html_and_links(text):
 
     return text.strip()
 
+def create_and_return_summarized_folder(imap):
+    try:
+        status, _ = imap.create("Summarized")
+        if status == "OK":
+            print("Summarized folder created.")
+        elif status == "NO":
+            print("Summarized folder already exists.")
+    except Exception as e:
+        print(f"An error occurred while creating Summarized folder: {e}")
+    
+    return "Summarized"
+
+def mark_emails_read(email_ids):
+    # Group email IDs by account_identifier
+    grouped_email_ids = defaultdict(list)
+    for email_id, account_identifier in email_ids:
+        grouped_email_ids[account_identifier].append(email_id)
+
+    # Process emails for each account
+    for account_identifier, account_email_ids in grouped_email_ids.items():
+        # Find the account associated with the account_identifier
+        account = next(acc for acc in accounts if acc['email'] == account_identifier)
+
+        email_address = account["email"]
+        email_password = account["password"]
+        email_provider = account["provider"]
+
+        # Connect to the IMAP server
+        imap_url = EMAIL_PROVIDERS.get(email_provider.lower(), "imap.gmail.com")
+        imap = imaplib.IMAP4_SSL(imap_url)
+        imap.login(email_address, email_password)
+
+        # Select the mailbox
+        imap.select("inbox")
+
+        # Create the Summarized folder if it doesn't exist
+        summarized_folder = create_and_return_summarized_folder(imap)
+
+        # Process each email ID for the current account
+        for email_id in account_email_ids:
+            try:
+                # Convert the email ID to a string and set the \Seen flag for the email
+                email_id_str = str(email_id)
+                imap.store(email_id_str, '+FLAGS', '\\Seen')
+                print(f"Marked email {email_id} as read.")
+            except Exception as e:
+                print(f"An error occurred while marking email {email_id} as read: {e}")
+
+            # Move the email to the Summarized folder
+            try:
+                imap.copy(email_id_str, summarized_folder)
+                imap.store(email_id_str, '+FLAGS', '\\Deleted')
+                print(f"Moved email {email_id} to the Summarized folder.")
+            except Exception as e:
+                print(f"An error occurred while moving email {email_id} to the Summarized folder: {e}")
+
+        # Expunge the mailbox to commit changes immediately
+        imap.expunge()
+
+        # Close the mailbox and logout from the IMAP server
+        imap.close()
+        imap.logout()
+    
+@app.route('/mark_emails_read', methods=['POST'])
+def mark_emails_read_route():
+    email_ids_str = request.json['email_ids']
+    
+    # Print the incoming email_ids_str for debugging purposes
+    print(f"Incoming email_ids_str: {email_ids_str}", flush=True)
+
+    # Split the string by newlines and remove empty strings
+    email_ids_lines = [line for line in email_ids_str.split('\n') if line]
+
+    # Group the lines into pairs and convert them into tuples
+    email_ids = [(email_ids_lines[i], email_ids_lines[i+1]) for i in range(0, len(email_ids_lines), 2)]
+
+    try:
+        mark_emails_read(email_ids)
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"Error marking emails as read: {e}", flush=True)
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/get_emails_summary', methods=['POST'])
 def get_emails_summary_route():
-    # Fetch the latest emails
-    latest_emails = fetch_latest_emails()
-
     # Call the get_emails_summary function with the latest_emails list
     return get_emails_summary(latest_emails)
 
-def mark_emails_read_in_background(email_ids):
-    try:
-        mark_emails_read(email_ids)
-    except Exception as e:
-        print(f"Error marking emails as read: {e}", flush=True)
-
 def get_emails_summary(latest_emails):
-    # Get the list of email IDs from the request
-    email_ids_string = request.form.get('ids')
-
-    # Split the email IDs string into a list of email IDs
-    email_ids = email_ids_string.replace('ids[]=', '').strip('"').split('","')
-
     # Print the received email IDs
-    print(f"Received email IDs: {email_ids}", flush=True)
+    print(f"Received email IDs: {[e['id'] for e in latest_emails]}", flush=True)
 
     # Find the emails with the given ids in the latest_emails list
-    emails = [e for e in latest_emails if e['id'] in email_ids and e.get('subject', '') != 'No subject' and e.get('content', '') != 'No content']
+    emails = [e for e in latest_emails if e.get('subject', '') != 'No subject' and e.get('body', '') != 'No content']
 
     # Get the number of emails summarized
     num_emails = len(emails)
@@ -399,9 +484,6 @@ def get_emails_summary(latest_emails):
     email_content = ""
     for i, email in enumerate(emails):
         email_content += f"Email {i + 1}:\nSubject: {email['subject']}\nFrom: {email['from']}\n\n{email['body']}\n\n"
-
-    # Remove HTML and links from email content
-    email_content = remove_html_and_links(email_content)
 
     # Generate the prompt for the emails
     prompt = f"{CUSTOM_PROMPT}\n\n{email_content}"
@@ -479,11 +561,20 @@ def get_emails_summary(latest_emails):
     statistics = f"Summarized {num_emails} Emails. \n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens} \n \n Senders: {unique_senders_str}"
     
     # Start a separate thread to mark the emails as read
-    mark_emails_read_thread = threading.Thread(target=mark_emails_read_in_background, args=(email_ids,))
-    mark_emails_read_thread.start()
+    email_ids = [(e['id'], e['account']) for e in emails]
 
-    return jsonify({"summary": summary, "statistics": statistics})
+    return jsonify({"summary": summary, "statistics": statistics, "email_ids": email_ids})
+
+# WebUI
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=1337)
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_email_monitor())
+    
+    config = Config()
+    config.bind = ['0.0.0.0:1337']  # Update the host and port as needed
+    loop.run_until_complete(serve(app, config))
 
