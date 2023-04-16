@@ -2,255 +2,134 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Example Page</title>
-    <style>
-  body {
-    font-family: Uni Sans, sans-serif;
-    background-color: #2E3035;
-    color: #eee;
-  }
-
-  header {
-    background-color: #111;
-    color: #eee;
-    text-align: center;
-    padding: 1rem;
-    width: calc(100% - 33%);
-  }
-
-  main {
-    display: flex;
-    flex-direction: column; /* change the direction to column */
-    padding: 1rem;
-    padding-top: 0rem;
-    margin-right: 33%;
-  }
-
-  .card {
-    width: 30%;
-    background-color: #444;
-    border: 1px solid #666;
-    border-radius: 5px;
-    padding: 2rem;
-    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.3);
-  }
-
-  h3 {
-    font-size: 16px;
-    margin-top: 0rem;
-    color: #eee;
-    font-weight: normal;
-  }
-
-  .card p {
-    font-size: 16px;
-    line-height: 1.6;
-    color: #eee;
-  }
-
-  .card button {
-    display: none; /* hide the button */
-  }
-
-/* Email buttons */
-.email-list {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  margin: 0rem 0;
-  justify-content: center;
-}
-
-.email-button {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #4E5058;
-  color: #FEFEFE;
-  border: none;
-  padding: .75rem 2rem;
-  font-size: .8rem;
-  font-weight: bold;
-  cursor: pointer;
-  position: relative;
-}
-
-.email-button:not(:last-child) {
-  border-right: 1px solid #1E1F22;
-}
-
-.email-button:active {
-  background-color: #666;
-}
-
-.email-button:first-child {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.email-button:last-child {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 5px;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-top: 1px solid #1E1F22;
-}
-
-.email-button:nth-child(n+6):not(:last-child) {
-  border-right: 1px solid #1E1F22;
-  border-top: 1px solid #1E1F22;
-}
-
-.email-button:nth-child(5):not(:last-child),
-.email-button:nth-child(10):not(:last-child) {
-  border-right: 0 solid #666;
-}
-
-.email-button:nth-child(5):first-child {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-top-right-radius: 5px;
-  border-bottom-right-radius: 5px;
-}
-
-.email-button:nth-child(6):first-child {
-  border-top-left-radius: 5px;
-  border-bottom-left-radius: 5px;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.email-button:nth-child(1),
-.email-button:nth-child(2),
-.email-button:nth-child(3),
-.email-button:nth-child(4) {
-  border-bottom-right-radius: 0;
-}
-
-.email-button:nth-child(5):not(:first-child),
-.email-button:nth-child(6):not(:first-child),
-.email-button:nth-child(7),
-.email-button:nth-child(8),
-.email-button:nth-child(9),
-.email-button:nth-child(10):not(:first-child) {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.email-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  background-color: #444;
-  color: #eee;
-  border: none;
-  border-radius: 0 0 5px 5px;
-  padding: 1.5rem 2rem;
-  font-size: 1.2rem;
-  font-weight: bold;
-  cursor: pointer;
-  display: none;
-}
-
-.email-button:active .email-dropdown {
-  display: block;
-}
-      
-  /* Terminal-like panel */
-  .terminal-panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 33%;
-    height: 100%;
-    background-color: black;
-    color: white;
-    z-index: 998;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    overflow-y: scroll;
-    border-left: 1px solid #1E1F22;
-  }
-
-  .terminal-panel p {
-    margin: 0;
-    padding: 0 .75rem;
-  }
-
-  .terminal-panel input[type="text"] {
-    display: block;
-    width: 100%;
-    padding: 1rem;
-    background-color: #333;
-    color: white;
-    border: none;
-    outline: none;
-  }
-
-  .terminal-panel input[type="submit"] {
-    display: none;
-  }
-      .code-block {
-  background-color: #2B2D31;
-  border: 1px solid #1E1F22;
-  font-family: Uni Sans, monospace;
-  font-size: 14px;
-  padding: 10px;
-  border-radius: 10px 10px 10px 10px;
-}
-</style>
-
-
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <main>
-  <h2>Gmail Summary</h2>
-  <h3>Preview latest emails:</h3>
-  <div class="email-list">
-    <button class="email-button" id="email1">Acme Corporation</button>
-    <button class="email-button" id="email2">John Doe</button>
-    <button class="email-button" id="email3">Jane Smith</button>
-    <button class="email-button" id="email4">XYZ Company</button>
-    <button class="email-button" id="email5">Mary Johnson</button>
-    <button class="email-button" id="email6">ABC Inc.</button>
-    <button class="email-button" id="email7">Sarah Williams</button>
-    <button class="email-button" id="email8">David Lee</button>
-    <button class="email-button" id="email9">New Horizons LLC</button>
-    <button class="email-button" id="email10">Samantha Brown</button>
-  </div>
-  <div class="summary">
-    <p class="code-block">
-      Fetching latest emails...<br><br>Email IDs: 1811bc9bc6aab2b0, 1811ffd85e3e8023, 18120e5ac28a0061, 18124ccce16ef3be, 1812598efb438247, 181267afffcae575, 1812a0f48b8acbe5, 1812b2e77f0ab5c3, 1812e4c04312b58d, 18136ebf67d52c9b.</p>
-    <p class="code-block">
-      Marking emails as read...<br><br>Email IDs: 1811bc9bc6aab2b0, 1811ffd85e3e8023, 18120e5ac28a0061, 18124ccce16ef3be, 1812598efb438247, 181267afffcae575, 1812a0f48b8acbe5, 1812b2e77f0ab5c3, 1812e4c04312b58d, 18136ebf67d52c9b.</p>
-    <p class="code-block">
-      Generated prompt for OpenAI....</p>
-    <p class="code-block">
-      Generated summary from OpenAI...<br><br>Hey Daniel, I've got a summary of your new emails for you. First, Zoom sent an email about enhancements to the Admin Portal, and the migration to the New Admin Experience will start on June 1. Once it's enabled, you won't be able to switch back. They also sent an email targeted at Zoom Developers, mentioning that the JWT app type will be deprecated by June 2023, and you should migrate to the server-to-server OAuth app type.
+    <pre id="terminal" class="blurred">
+        
+Initial message_numbers: [b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'10', b'11', b'12', b'13', b'14', b'15', b'16', b'17', b'18', b'19', b'20', b'21', b'22', b'23', b'24', b'25', b'26', b'27', b'28', b'29', b'30', b'31', b'32', b'33', b'34', b'35', b'36', b'37', b'38', b'39', b'40', b'41', b'42', b'43', b'44', b'45', b'46', b'47', b'48', b'49', b'50', b'51', b'52', b'53', b'54', b'55', b'56', b'57', b'58', b'59', b'60', b'61', b'62', b'63', b'64', b'65', b'66', b'67', b'68', b'69', b'70', b'71', b'72', b'73', b'74', b'75', b'76', b'77', b'78', b'79', b'80', b'81', b'82', b'83', b'84', b'85', b'86', b'87', b'88', b'89', b'90', b'91', b'92', b'93', b'94', b'95', b'96', b'97', b'98', b'99', b'100', b'101', b'102', b'103', b'104', b'105', b'106', b'107', b'108', b'109', b'110', b'111', b'112', b'113', b'114', b'115', b'116', b'117', b'118', b'119', b'120', b'121', b'122', b'123', b'124', b'125', b'126', b'127', b'128', b'129', b'130', b'131', b'132', b'133', b'134', b'135', b'136', b'137', b'138', b'139', b'140', b'141', b'142', b'143', b'144', b'145', b'146', b'147', b'148', b'149', b'150', b'151', b'152', b'153', b'154', b'155', b'156', b'157', b'158', b'159', b'160', b'161', b'162', b'163', b'164', b'165', b'166', b'167', b'168', b'169', b'170', b'171', b'172', b'173', b'174', b'175', b'176', b'177', b'178', b'179', b'180', b'181', b'182', b'183', b'184', b'185', b'186', b'187', b'188', b'189', b'190', b'191', b'192', b'193', b'194', b'195', b'196', b'197', b'198', b'199', b'200', b'201', b'202', b'203', b'204', b'205', b'206', b'207', b'208', b'209', b'210', b'211', b'212', b'213', b'214', b'215', b'216', b'217', b'218', b'219', b'220', b'221', b'222', b'223', b'224', b'225', b'226', b'227', b'228', b'229', b'230', b'231', b'232', b'233', b'234', b'235', b'236', b'237', b'238', b'239', b'240', b'241', b'242', b'243', b'244', b'245', b'246', b'247', b'248', b'249', b'250', b'251', b'252', b'253', b'254', b'255', b'256', b'257', b'258', b'259', b'260', b'261', b'262', b'263', b'264', b'265', b'266', b'267', b'268', b'269', b'270', b'271', b'272', b'273', b'274', b'275', b'276', b'277', b'278', b'279', b'280', b'281', b'282', b'283', b'284', b'285', b'286', b'287', b'288', b'289', b'290', b'291', b'292', b'293', b'294', b'295', b'296', b'297', b'298', b'299', b'300', b'301', b'302', b'303', b'304', b'305', b'306', b'307', b'308', b'309', b'310', b'311', b'312', b'313', b'314', b'315', b'316', b'317', b'318', b'319', b'320', b'321', b'322', b'323', b'324', b'325', b'326', b'327', b'328', b'329', b'330', b'331', b'332', b'333', b'334', b'335', b'336', b'337', b'338', b'339', b'340', b'341', b'342', b'343', b'344', b'345', b'346', b'347', b'348', b'349', b'350', b'351', b'352', b'353', b'354', b'355', b'356', b'357', b'358', b'359', b'360', b'361', b'362', b'363', b'364', b'365', b'366', b'367', b'368', b'369', b'370', b'371', b'372', b'373', b'374', b'375', b'376', b'377', b'378', b'379', b'380', b'381', b'382', b'383', b'384', b'385', b'386', b'387', b'388', b'389', b'390', b'391', b'392', b'393', b'394', b'395', b'396', b'397', b'398', b'399', b'400', b'401', b'402', b'403', b'404', b'405', b'406', b'407', b'408', b'409', b'410', b'411', b'412', b'413', b'414', b'415', b'416', b'417', b'418', b'419', b'420', b'421', b'422', b'423', b'424', b'425', b'426', b'427', b'428', b'429', b'430', b'431', b'432', b'433', b'434', b'435', b'436', b'437', b'438', b'439', b'440', b'441', b'442', b'443', b'444', b'445', b'446', b'447', b'448', b'449', b'450', b'451', b'452', b'453', b'454', b'455', b'456', b'457', b'458', b'459', b'460', b'461', b'462', b'463', b'464', b'465', b'466', b'467', b'468', b'469', b'470', b'471', b'472', b'473', b'474', b'475', b'476', b'477', b'478', b'479', b'480', b'481', b'482', b'483', b'484', b'485', b'486', b'487', b'488', b'489', b'490', b'491', b'492', b'493', b'494', b'495', b'496', b'497', b'498', b'499', b'500', b'501', b'502', b'503', b'504', b'505', b'506', b'507', b'508', b'509', b'510', b'511', b'512', b'513', b'514', b'515', b'516', b'517', b'518', b'519', b'520', b'521', b'522', b'523', b'524', b'525', b'526', b'527', b'528', b'529', b'530', b'531', b'532', b'533', b'534', b'535', b'536', b'537', b'538', b'539', b'540', b'541', b'542', b'543', b'544', b'545', b'546', b'547', b'548', b'549', b'550', b'551', b'552', b'553', b'554', b'555', b'556', b'557', b'558', b'559', b'560', b'561', b'562', b'563', b'564', b'565', b'566', b'567', b'568', b'569', b'570', b'571', b'572', b'573', b'574', b'575', b'576', b'577', b'578', b'579', b'580', b'581', b'582', b'583', b'584', b'585', b'586', b'587', b'588', b'589', b'590', b'591', b'592', b'593', b'594', b'595', b'596', b'597', b'598', b'599', b'600', b'601', b'602', b'603', b'604', b'605', b'606', b'607', b'608', b'609', b'610', b'611', b'612', b'613', b'614', b'615', b'616', b'617', b'618', b'619', b'620', b'621', b'622', b'623', b'624', b'625', b'626', b'627', b'628', b'629', b'630', b'631', b'632', b'633', b'634', b'635', b'636', b'637', b'638', b'639', b'640', b'641', b'642', b'643', b'644', b'645', b'646', b'647', b'648', b'649', b'650', b'651', b'652', b'653', b'654', b'655', b'656', b'657', b'658', b'659', b'660', b'661', b'662', b'663', b'664', b'665', b'666', b'667', b'668', b'669', b'670', b'671', b'672', b'673', b'674', b'675', b'676', b'677', b'678', b'679', b'680', b'681', b'682', b'683']
+Input:
+ Sender: redacted@gmail.com
+Subject: Accepted: Working Session with Daniel / Redacted @ Tue Apr 11, 2023
+ 10am - 11am (CDT) (redacted@email.com)
+Body: Not Today Satan.
 
-StreamYard announced the release of their Greenroom feature on the Business Plan, which lets hosts prepare with guests before going live. You can book a demo if you're interested.
+Working Session with Daniel / Redacted
+Tuesday Apr 11, 2023 ⋅ 10am – 11am
+Central Time - Chicago
 
-You received four Adobe verification codes, but I'm not sure if you requested them: 832911, 304120, 296077, and 876965. If you didn't request them, you might want to check your account security.
+	
+Join Zoom Meeting
+https://geniecast.zoom.us/j/883lolnoped5clRDZFRkSDh4dz09
+	
+Join by phone
+(US) +1 669-555-9171
+(US) +1 669-555-6833
 
-Lastly, you've successfully paid for a subscription to Film Impact's Essentials Collection for $15, and it will renew every month, with the next charge on 7/4/22.
 
-That's all for now, and remember, what do you call an alligator in a vest? An investigator! Have a great day, Daniel!</p>
-  <p class="code-block">
-      Sending summary to Elevenlabs...</p>
-  </div>
-</main>
+Reschedule this event:
+meet.mayday.am/1b1985d0-6ed1-4489-a386-22ithinknot6-d26a-46dd-bfab-678cbe755e68/reschedule
 
-    <!-- Terminal-like panel -->
-    <div class="terminal-panel">
-        <br>
-        <p>Logs of gmailsummary.py will appear here...</p>
+Guests
+View all guest info  
+https://calendar.google.com/calendar/event?action=VIEW&eid=XzZoaWowZTlpY2NyNnottodaysatanmYjE3ZGUyOGYyZGVkOTY2ODQ3Mg&ctz=America%2FChicago&hl=en&es=1
+
+~~//~~
+Invitation from Google Calendar: https://calendar.google.com/calendar/
+
+You are receiving this email because you are an attendee on the event. To  
+stop receiving future updates for this event, decline this event.
+
+Forwarding this invitation could allow any recipient to send a response to  
+the organizer, be added to the guest list, invite others regardless of  
+their own invitation status, or modify your RSVP.
+
+Learn more https://support.google.com/calendar/answer/37135#forwarding
+
+############################################
+#                                          #
+#  Character count for this email: 1616    #
+#  Total characters processed so far: 1616 #
+#                                          #
+############################################
+
+Input:
+ Sender: Daniel von Seckendorff <redacted@gmail.com>
+Subject: This is a test
+Body: Banana
+
+-Daniel
+
+############################################
+#                                          #
+#  Character count for this email: 104     #
+#  Total characters processed so far: 1720 #
+#                                          #
+############################################
+    </pre>
+    <div class="buttons-container">
+        <button class="terminal-toggle-button" id="terminal-toggle-button">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="white">
+            <path d="M19 3H8a2 2 0 0 0-2 2v1H4.62A1.5 1.5 0 0 0 3 7.5L3.5 22a1.5 1.5 0 0 0 1.5 1.5H18a2 2 0 0 0 2-2V5a2 2 0 0 0-1-1.73V3zm0 17H6V5h13v15zm-9-7h6v2H10zm0-4h6v2H10zm0 8h6v2H10z"/>
+        </svg>
+        </button>
+        <button class="settings-button" id="settings-button">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="white">
+                <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-1.01l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.28-1.17.61-1.69 1.01l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69 1.01l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.28 1.17-.61 1.69-1.01l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zm-7 4c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+            </svg>
+        </button>
     </div>
-</body>
 
+
+    <div class="centered-container">
+        <h2>Next Summary: 0 emails</h2>
+        <div class="senders-container">
+            <div class="senders-header">
+                <span>Senders</span>
+                <span class="arrow" id="arrow">&#x25BC;</span>
+            </div>
+            <div class="senders-text" id="senders-text">This is a placeholder of a unique senders payload.
+            </div>
+        </div>
+        <div class="run-button" id="run-button">
+            Run
+        </div>
+        <div class="info-container">
+            <span>Variable Quantity = true</span>
+            <span>Max Characters = 25,000</span></span>
+        </div>
+    </div>
+    <div class="settings-container hidden">
+    <h2>Settings</h2>
+    <div class="settings-menu">
+        <div class="settings-item">
+            <div class="settings-header">
+                <span>OpenAI</span>
+                <span class="arrow" id="openai-arrow">&#x25BC;</span>
+            </div>
+            <div class="settings-text" id="openai-text">
+    <div class="input-container">
+        <input type="text" class="api-key-input" id="api-key-input" placeholder="enter your API key"/>
+    </div>
+</div>
+        </div>
+        <div class="settings-item">
+            <div class="settings-header">
+                <span>Connected Accounts</span>
+                <span class="arrow" id="accounts-arrow">&#x25BC;</span>
+            </div>
+            <div class="settings-text" id="accounts-text">
+    <div class="account-actions">
+        <button class="account-action-btn add-account">Add Account</button>
+        <button class="account-action-btn remove-account">Remove Account</button>
+    </div>
+    <p>Enable IMAP for accounts. Use application passwords when possible.</p>
+</div>
+
+    </div>
+</div>
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
 </html>
