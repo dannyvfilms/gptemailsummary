@@ -1,9 +1,11 @@
 wheel
 Flask
-google-api-python-client==1.12.8
-google-auth==1.23.0
-google-auth-httplib2==0.0.4
-google-auth-oauthlib==0.4.2
+flask[async]
+hypercorn
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
 openai
 requests
 configparser
