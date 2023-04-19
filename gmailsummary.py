@@ -69,7 +69,6 @@ accounts = [
     }
 ]
 
-
 # Set up OpenAI API credentials
 openai.api_key = OPENAI_API_KEY
 
@@ -79,6 +78,9 @@ latest_emails = []
 # Variable that will store the total number of characters for emails
 total_characters = 0
 max_characters = int(os.environ.get('EMAIL_MAXCHARACTERS'))
+
+# Variable to allow summary function to interrupt payload generation
+email_fetch_lock = Lock()
 
 # Create nice text boxes in logs
 def format_text_with_boxes(text, design='shell', padding='a1l2'):
@@ -101,7 +103,7 @@ def count_characters(text):
     count_message = format_text_with_boxes(f"Character count for this email: {char_count}\nTotal characters processed so far: {total_characters}")
     print(count_message, flush=True)
 
-async def fetch_latest_emails(email_event):
+async def fetch_latest_emails(email_event):        
     global latest_emails, total_characters
 
     # Initialize an empty list to store the latest emails
@@ -118,7 +120,7 @@ async def fetch_latest_emails(email_event):
     # Print the while loop settings
     start_message = format_text_with_boxes(f"Creating Email Payload. Settings for the run:\n \nVariable Quantity: {variable_quantity}\nMax characters: {max_characters}\nMax emails: {max_emails}\n \nStarting the loop.")
     print(start_message, flush=True)
-    
+
     imaps = []
     message_numbers_list = []
     processed_emails_ids_list = []
@@ -145,26 +147,31 @@ async def fetch_latest_emails(email_event):
 
         # Reverse the message numbers to fetch newest to oldest
         message_numbers = message_numbers[::-1]
-        
+
         # Add imap connection and message numbers to their respective lists
         imaps.append(imap)
         message_numbers_list.append(message_numbers)
 
         print(f"Initial message_numbers: {message_numbers}", flush=True)  # Debug statement added
-    
+
     # Initialize the processed_email_ids_list
     processed_email_ids_list = [set() for _ in range(len(accounts))]
-    
+
     # Add a flag to break out of the outer while loop
     stop_loop = False
-    
+
     current_account_index = 0
     num_accounts = len(accounts)
-    
+
     while not email_event.is_set() and not stop_loop:
         all_accounts_empty = True
 
         for account_index, account in enumerate(accounts):
+            # Add a lock check at the beginning of the loop
+            if email_fetch_lock.locked():
+                print("Email fetch lock acquired by another task. Stopping this iteration.")
+                break
+            
             email_address = account["email"]
             email_password = account["password"]
             email_provider = account["provider"]
@@ -180,7 +187,7 @@ async def fetch_latest_emails(email_event):
 
             # Update the message_numbers_list for the current account
             message_numbers_list[account_index] = message_numbers
-            
+
             # Remove processed email IDs from message_numbers
             message_numbers = [msg_num for msg_num in message_numbers if msg_num not in processed_email_ids_list[account_index]]
 
@@ -192,6 +199,11 @@ async def fetch_latest_emails(email_event):
             message_index = 0
 
             if message_index < len(message_numbers):
+                # Add a lock check at the beginning of the loop
+                if email_fetch_lock.locked():
+                    print("Email fetch lock acquired by another task. Stopping this iteration.")
+                    break
+            
                 message_number = message_numbers[message_index]
                 message_index += 1
                 _, msg_data_response = imap.fetch(message_number, "(BODY.PEEK[])")
@@ -254,7 +266,7 @@ async def fetch_latest_emails(email_event):
                 message_numbers = message_numbers[1:]
                 message_numbers_list[account_index] = message_numbers
                 processed_email_ids_list[account_index].add(message_number)
-                
+
         # Move to the next account in a round-robin fashion
         current_account_index = (current_account_index + 1) % num_accounts
 
@@ -267,17 +279,17 @@ async def fetch_latest_emails(email_event):
         # Update the imap connection and message numbers for the next account
         imap = imaps[current_account_index]
         message_numbers = message_numbers_list[current_account_index]
-    
+
         if all_accounts_empty:
             print("No new emails found in all accounts. Exiting loop.", flush=True)
             break
-    
+
     # Sort the emails by internal date (oldest first)
     sorted_emails = sorted(latest_emails, key=lambda email: email['internalDate'])
 
     # Update the latest_emails global variable
     latest_emails = sorted_emails
-    
+
     # Find the emails with the given ids in the latest_emails list
     emails = [e for e in latest_emails if e.get('subject', '') != 'No subject' and e.get('body', '') != 'No content']
 
@@ -287,17 +299,17 @@ async def fetch_latest_emails(email_event):
     # Get the unique senders' names
     unique_senders = set([e['from'] for e in emails])
     unique_senders_str = ', '.join(unique_senders)
-    
+
     # Wrap the unique senders' string to 150 characters
     unique_senders_str = textwrap.fill(unique_senders_str, width=150)
-                
+
     # Print the latest_emails list to the terminal
     print("\n" + "#" * 45 + "\n    Latest Emails Fetched:   \n" + "#" * 45 + "\n", flush=True)
     print(f"{latest_emails}", flush=True)
-    
+
     payload_ready = format_text_with_boxes(f"Payload Generated.\n \nAmount: {num_emails}\nSenders: {unique_senders_str}\n \nSettings for the run:\n \nVariable Quantity: {variable_quantity}\nMax characters: {max_characters}\nMax emails: {max_emails}")
     print(payload_ready, flush=True)
-    
+
     return latest_emails
 
 async def start_email_monitor():
@@ -438,6 +450,13 @@ def mark_emails_read(email_ids):
         imap.close()
         imap.logout()
     
+def mark_emails_read_async(email_ids):
+    try:
+        mark_emails_read(email_ids)
+        print("Successfully marked emails as read.", flush=True)
+    except Exception as e:
+        print(f"Error marking emails as read: {e}", flush=True)
+    
 @app.route('/mark_emails_read', methods=['POST'])
 def mark_emails_read_route():
     email_ids_str = request.json['email_ids']
@@ -451,12 +470,10 @@ def mark_emails_read_route():
     # Group the lines into pairs and convert them into tuples
     email_ids = [(email_ids_lines[i], email_ids_lines[i+1]) for i in range(0, len(email_ids_lines), 2)]
 
-    try:
-        mark_emails_read(email_ids)
-        return jsonify({"success": True})
-    except Exception as e:
-        print(f"Error marking emails as read: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)})
+    # Start a separate thread to mark the emails as read
+    threading.Thread(target=mark_emails_read_async, args=(email_ids,), daemon=True).start()
+
+    return jsonify({"success": True})
 
 @app.route('/get_emails_summary', methods=['POST'])
 def get_emails_summary_route():
@@ -464,106 +481,119 @@ def get_emails_summary_route():
     return get_emails_summary(latest_emails)
 
 def get_emails_summary(latest_emails):
-    # Print the received email IDs
-    print(f"Received email IDs: {[e['id'] for e in latest_emails]}", flush=True)
+    with email_fetch_lock:   
+        error_message = ""
+        num_emails = 0
+        unique_senders_str = ""
+        email_content = ""
 
-    # Find the emails with the given ids in the latest_emails list
-    emails = [e for e in latest_emails if e.get('subject', '') != 'No subject' and e.get('body', '') != 'No content']
+        # Print the received email IDs
+        print(f"Received email IDs: {[e['id'] for e in latest_emails]}", flush=True)
 
-    # Get the number of emails summarized
-    num_emails = len(emails)
+        try:
+            # Find the emails with the given ids in the latest_emails list
+            emails = [e for e in latest_emails if e.get('subject', '') != 'No subject' and e.get('body', '') != 'No content']
 
-    # Get the unique senders' names
-    unique_senders = set([e['from'] for e in emails])
-    unique_senders_str = ', '.join(unique_senders)
-    
-    # Wrap the unique senders' string to 150 characters
-    unique_senders_str = textwrap.fill(unique_senders_str, width=150)
+            # Get the number of emails summarized
+            num_emails = len(emails)
 
-    # Concatenate the email content
-    email_content = ""
-    for i, email in enumerate(emails):
-        email_content += f"Email {i + 1}:\nSubject: {email['subject']}\nFrom: {email['from']}\n\n{email['body']}\n\n"
+            # Get the unique senders' names
+            unique_senders = set([e['from'] for e in emails])
+            unique_senders_str = ', '.join(unique_senders)
 
-    # Generate the prompt for the emails
-    prompt = f"{CUSTOM_PROMPT}\n\n{email_content}"
+            # Wrap the unique senders' string to 150 characters
+            unique_senders_str = textwrap.fill(unique_senders_str, width=150)
 
-    # Print the prompt to the console
-    print("\n" + "#" * 45 + "\n    Generated Prompt:   \n" + "#" * 45 + "\n", flush=True)
-    print(prompt, flush=True)
+            # Concatenate the email content
+            for i, email in enumerate(emails):
+                email_content += f"Email {i + 1}:\nSubject: {email['subject']}\nFrom: {email['from']}\n\n{email['body']}\n\n"
 
-    # Generate a summary of the emails using the OpenAI API
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-    }
+        except Exception as e:
+            error_message = f"An error occurred while processing the emails: {e}"
 
-    data = {
-        "model": OPENAI_ENGINE,
-        "messages": [
-            {"role": "system", "content": prompt},
-        ],
-        "max_tokens": OPENAI_MAX_TOKENS,
-        "n": 1,
-        "temperature": OPENAI_TEMPERATURE,
-    }
+        if error_message:
+            prompt = f"{CUSTOM_PROMPT}\n\n{error_message}"
+        elif num_emails == 0:
+            prompt = f"Assume you are a friendly assistant. You have just checked to see if there are any new noteworthy emails to summarize. No emails are available, so let the user know that there are no new emails to report and provide reassurance that you're keeping an eye on their inbox. Ensure that your response works best when spoken and maintain a tone that demonstrates emotional intelligence."
+        else:
+            prompt = f"{CUSTOM_PROMPT}\n\n{email_content}"
 
-    try:
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-        )
-        response.raise_for_status()
-        response_json = response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error connecting to OpenAI API: {e}", flush=True)
-        return jsonify({"error": "Failed to connect to OpenAI API."})
-    except ValueError as e:
-        print(f"Error parsing OpenAI API response: {e}", flush=True)
-        return jsonify({"error": "Failed to parse OpenAI API response."})
+        # Print the prompt to the console
+        print("\n" + "#" * 45 + "\n    Generated Prompt:   \n" + "#" * 45 + "\n", flush=True)
+        print(prompt, flush=True)
 
-    try:
-        response_json = response.json()
-    except Exception as e:
-        print(f"Error: {e}", flush=True)
-        return jsonify({"error": str(e)})
+        # Generate a summary of the emails using the OpenAI API
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+        }
 
-    print("\n" + "#" * 45 + "\n    OpenAI Response Payload:   \n" + "#" * 45 + "\n", flush=True)
-    print(response_json, flush=True)
+        data = {
+            "model": OPENAI_ENGINE,
+            "messages": [
+                {"role": "system", "content": prompt},
+            ],
+            "max_tokens": OPENAI_MAX_TOKENS,
+            "n": 1,
+            "temperature": OPENAI_TEMPERATURE,
+        }
 
-    if 'error' in response_json:
-        print(f"OpenAI API error: {response_json['error']['message']}", flush=True)
-        return jsonify({"error": response_json["error"]["message"]})
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+            )
+            response.raise_for_status()
+            response_json = response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Error connecting to OpenAI API: {e}", flush=True)
+            return jsonify({"error": "Failed to connect to OpenAI API."})
+        except ValueError as e:
+            print(f"Error parsing OpenAI API response: {e}", flush=True)
+            return jsonify({"error": "Failed to parse OpenAI API response."})
 
-    try:
-        summary = response_json["choices"][0]["message"]["content"].strip()
-    except KeyError:
-        print("Error extracting summary from OpenAI API response.", flush=True)
-        return jsonify({"error": "Failed to extract summary from OpenAI API response."})
+        try:
+            response_json = response.json()
+        except Exception as e:
+            print(f"Error: {e}", flush=True)
+            return jsonify({"error": str(e)})
 
-    # Extract token usage from response JSON
-    usage = response_json['usage']
-    prompt_tokens = usage['prompt_tokens']
-    completion_tokens = usage['completion_tokens']
-    total_tokens = usage['total_tokens']
+        print("\n" + "#" * 45 + "\n    OpenAI Response Payload:   \n" + "#" * 45 + "\n", flush=True)
+        print(response_json, flush=True)
 
-    # Return the summary as plain text instead of JSON
-    print("\n" + "#" * 45 + "\n    OpenAI Response:   \n" + "#" * 45 + "\n", flush=True)
-    print(summary, flush=True)
-    
-    # Wrap the summary string to 150 characters per line
-    summary_wrapped = textwrap.fill(summary, width=150)
+        if 'error' in response_json:
+            print(f"OpenAI API error: {response_json['error']['message']}", flush=True)
+            return jsonify({"error": response_json["error"]["message"]})
 
-    final_summary = format_text_with_boxes(f"Run Completed Successfully! \n \nAmount: {num_emails}\nSenders: {unique_senders_str}\n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens}\n \nResponse: \n{summary_wrapped}")
-    print(final_summary)
-    
-    statistics = f"Summarized {num_emails} Emails. \n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens} \n \n Senders: {unique_senders_str}"
-    
-    # Start a separate thread to mark the emails as read
-    email_ids = [(e['id'], e['account']) for e in emails]
+        try:
+            summary = response_json["choices"][0]["message"]["content"].strip()
+        except KeyError:
+            print("Error extracting summary from OpenAI API response.", flush=True)
+            return jsonify({"error": "Failed to extract summary from OpenAI API response."})
 
-    return jsonify({"summary": summary, "statistics": statistics, "email_ids": email_ids})
+        # Extract token usage from response JSON
+        usage = response_json['usage']
+        prompt_tokens = usage['prompt_tokens']
+        completion_tokens = usage['completion_tokens']
+        total_tokens = usage['total_tokens']
+
+        # Return the summary as plain text instead of JSON
+        print("\n" + "#" * 45 + "\n    OpenAI Response:   \n" + "#" * 45 + "\n", flush=True)
+        print(summary, flush=True)
+
+        # Wrap the summary string to 150 characters per line
+        summary_wrapped = textwrap.fill(summary, width=150)
+
+        final_summary = format_text_with_boxes(f"Run Completed Successfully! \n \nAmount: {num_emails}\nSenders: {unique_senders_str}\n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens}\n \nResponse: \n{summary_wrapped}")
+        print(final_summary)
+
+        statistics = f"Summarized {num_emails} Emails. \n \nTokens Sent: {prompt_tokens}\nTokens Received: {completion_tokens}\nTotal Tokens: {total_tokens} \n \n Senders: {unique_senders_str}"
+
+        # Start a separate thread to mark the emails as read
+        email_ids = [(e['id'], e['account']) for e in emails]
+
+        return jsonify({"summary": summary, "statistics": statistics, "email_ids": email_ids})
 
 # WebUI
 @app.route('/', methods=['GET'])
@@ -577,4 +607,3 @@ if __name__ == '__main__':
     config = Config()
     config.bind = ['0.0.0.0:1337']  # Update the host and port as needed
     loop.run_until_complete(serve(app, config))
-
